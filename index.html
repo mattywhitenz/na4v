@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+    <script type="module" src="script.js"></script>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -71,7 +72,8 @@
 
     <div class="field-group">
         <label for="apiKey">OpenAI API Key:</label>
-        <input type="text" id="apiKey" placeholder="Your OpenAI API Key">
+        <input type="password" id="apiKey" placeholder="Your OpenAI API Key">
+        <button id="toggleApiKey">Show</button>
     </div>
     <div class="field-group">
         <label for="instanceName">Instance Name:</label>
@@ -116,5 +118,19 @@
     <div id="conversationHistory"></div>
 
     <script src="script.js"></script>
+    <script>
+        const apiKeyInput = document.getElementById('apiKey');
+        const toggleApiKeyBtn = document.getElementById('toggleApiKey');
+
+        toggleApiKeyBtn.addEventListener('click', () => {
+            if (apiKeyInput.type === 'password') {
+                apiKeyInput.type = 'text';
+                toggleApiKeyBtn.textContent = 'Hide';
+            } else {
+                apiKeyInput.type = 'password';
+                toggleApiKeyBtn.textContent = 'Show';
+            }
+        });
+    </script>
 </body>
 </html>
