@@ -1,10 +1,9 @@
-entrypoint="index.html"
-hidden=[".config"]
-modules = ["web:v2-20230623-0b7a606"]
+run = "python -m http.server"
+language = "html"
 
 [nix]
-channel = "stable-23_11"
+channel = "stable-22_11"
 
 [deployment]
-publicDir = "/"
-deploymentTarget = "static"
+run = ["sh", "-c", "python -m http.server"]
+deploymentTarget = "cloudrun"

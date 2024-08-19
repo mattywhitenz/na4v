@@ -10,7 +10,7 @@ let isPaused = false;
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.SAVE_SETTINGS_BUTTON, 'click', saveSettings);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.START_BUTTON, 'click', startConversation);
+    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.START_BUTTON, 'click', startNewConversation);
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.STOP_BUTTON, 'click', stopRecording);
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.PAUSE_BUTTON, 'click', pauseConversation);
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.RESET_BUTTON, 'click', resetConversation);
@@ -18,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.VIEW_RULES_BUTTON, 'click', viewNewRules);
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.SAVE_RULES_BUTTON, 'click', saveNewRules);
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.HIDE_RULES_BUTTON, 'click', hideNewRules);
-
     loadSettings();
     displayConversationHistory();
 });
@@ -28,7 +27,6 @@ function saveSettings() {
     const instanceName = uiManager.getInputValue(CONFIG.UI_ELEMENTS.INSTANCE_NAME_INPUT);
     const instancePassword = uiManager.getInputValue(CONFIG.UI_ELEMENTS.INSTANCE_PASSWORD_INPUT);
     const customerName = uiManager.getInputValue(CONFIG.UI_ELEMENTS.CUSTOMER_NAME_INPUT);
-
     if (apiKey && instanceName && instancePassword && customerName) {
         localStorage.setItem(CONFIG.STORAGE_KEYS.API_KEY, apiKey);
         localStorage.setItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME, instanceName);
@@ -46,7 +44,6 @@ function loadSettings() {
     const savedInstanceName = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
     const savedInstancePassword = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD);
     const savedCustomerName = localStorage.getItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME);
-
     if (savedApiKey && savedInstanceName && savedInstancePassword && savedCustomerName) {
         uiManager.setInputValue(CONFIG.UI_ELEMENTS.API_KEY_INPUT, savedApiKey);
         uiManager.setInputValue(CONFIG.UI_ELEMENTS.INSTANCE_NAME_INPUT, savedInstanceName);
@@ -54,34 +51,28 @@ function loadSettings() {
         uiManager.setInputValue(CONFIG.UI_ELEMENTS.CUSTOMER_NAME_INPUT, savedCustomerName);
         uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.START_BUTTON]: true });
     }
-
     uiManager.updateUIControls({
         [CONFIG.UI_ELEMENTS.STOP_BUTTON]: false,
         [CONFIG.UI_ELEMENTS.PAUSE_BUTTON]: false
     });
 }
 
-async function startConversation() {
+function startNewConversation() {
     try {
         conversationStarted = false;
         userName = '';
         uiManager.updateTranscript('', ''); // Clear transcript
         uiManager.displayConversationHistory([]);
-
         const initialGreeting = "Hi, I'm Now Assist. To start off, please say your name.";
-        uiManager.updateTranscript('NOW ASSIST', initialGreeting);
         addToConversationHistory(initialGreeting, 'NOW ASSIST');
-        await respondWithSpeech(initialGreeting);
-
         uiManager.updateUIControls({
             [CONFIG.UI_ELEMENTS.START_BUTTON]: false,
             [CONFIG.UI_ELEMENTS.STOP_BUTTON]: true,
             [CONFIG.UI_ELEMENTS.PAUSE_BUTTON]: true
         });
-        
-        audioHandler.startRecording(onAudioDataAvailable);
+        respondWithSpeech(initialGreeting);
     } catch (error) {
-        console.error('Error in startConversation:', error);
+        console.error('Error in startNewConversation:', error);
         uiManager.updateStatus('Failed to start conversation. Please check console for details.');
     }
 }
@@ -92,16 +83,13 @@ function onAudioDataAvailable(audioBlob) {
 
 async function handleAudioInput(audioBlob) {
     const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
-    
     if (!conversationStarted) {
         userName = await audioHandler.handleNameRecording(audioBlob, apiKey);
         addToConversationHistory(`My name is ${userName}`, userName);
-
         const acknowledgement = `Nice to meet you, ${userName}. How can I assist you today?`;
         uiManager.updateTranscript('NOW ASSIST', acknowledgement);
         addToConversationHistory(acknowledgement, 'NOW ASSIST');
         await respondWithSpeech(acknowledgement);
-
         conversationStarted = true;
     } else {
         const transcript = await apiInteractions.transcribeAudio(audioBlob, apiKey);
@@ -109,8 +97,8 @@ async function handleAudioInput(audioBlob) {
             uiManager.updateTranscript(userName, transcript);
             addToConversationHistory(transcript, userName);
             const gpt4Response = await apiInteractions.processWithGPT4(
-                transcript, 
-                apiKey, 
+                transcript,
+                apiKey,
                 getConversationHistory(),
                 userName,
                 localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME),
@@ -163,19 +151,17 @@ function resetConversation() {
     conversationStarted = false;
     userName = '';
     isPaused = false;
-
     localStorage.removeItem(CONFIG.STORAGE_KEYS.CONVERSATION_HISTORY);
     localStorage.removeItem(CONFIG.STORAGE_KEYS.CASE_OPENED);
     uiManager.displayConversationHistory([]);
     uiManager.updateTranscript('', '');
-
     uiManager.updateUIControls({
         [CONFIG.UI_ELEMENTS.START_BUTTON]: true,
         [CONFIG.UI_ELEMENTS.STOP_BUTTON]: false,
         [CONFIG.UI_ELEMENTS.PAUSE_BUTTON]: false
     });
-
     uiManager.updateStatus('Conversation has been reset. You can start a new conversation.');
+    window.location.reload();
 }
 
 function addToConversationHistory(text, role) {

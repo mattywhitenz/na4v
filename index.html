@@ -4,116 +4,75 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Now Assist - Voice Interactive AI Assistant</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        h1, h2 {
-            color: #333;
-        }
-        .field-group {
-            margin-bottom: 10px;
-        }
-        .field-group label {
-            display: inline-block;
-            width: 150px;
-        }
-        input[type="text"], input[type="password"] {
-            width: 300px;
-            padding: 5px;
-        }
-        button {
-            padding: 10px 15px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
-        #resetConversation {
-            background-color: #ff4d4d;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            position: fixed;
-            top: 20px;
-            right: 20px;
-        }
-        #transcript, #conversationHistory {
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-top: 10px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        #status {
-            font-style: italic;
-            color: #666;
-            margin-top: 10px;
-        }
-        #newRulesEditor {
-            display: none;
-            margin-top: 20px;
-        }
-        #newRulesTextarea {
-            width: 100%;
-            height: 200px;
-            margin-bottom: 10px;
-        }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <h1>Now Assist - Voice Interactive AI Assistant</h1>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8 text-blue-600">Now Assist - Voice Interactive AI Assistant</h1>
+        
+        <div class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="apiKey">OpenAI API Key:</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="apiKey" type="text" placeholder="Your OpenAI API Key">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="instanceName">Instance Name:</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="instanceName" type="text" placeholder="Enter Instance Name">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="instancePassword">Instance Password:</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="instancePassword" type="password" placeholder="Enter Instance Password">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="customerName">Customer Name:</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="customerName" type="text" placeholder="Enter Customer Name">
+            </div>
+            <div class="flex items-center justify-between">
+                <button id="saveSettings" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                    Save Settings
+                </button>
+            </div>
+        </div>
 
-    <button id="resetConversation">Reset Conversation</button>
+        <div class="flex space-x-4 mb-4">
+            <button id="startConversation" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" disabled>Start Conversation</button>
+            <button id="stopRecording" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" disabled>Stop Recording</button>
+            <button id="pauseConversation" class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" disabled>Pause Conversation</button>
+            <button id="resetConversation" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Reset Conversation</button>
+        </div>
 
-    <div class="field-group">
-        <label for="apiKey">OpenAI API Key:</label>
-        <input type="text" id="apiKey" placeholder="Your OpenAI API Key">
+        <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="newRule">Add a new rule:</label>
+            <div class="flex">
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mr-2" id="newRule" type="text" placeholder="Enter a new rule">
+                <button id="addRule" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Add Rule</button>
+            </div>
+        </div>
+
+        <button id="viewNewRules" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline mb-4">View/Edit New Rules</button>
+
+        <div id="newRulesEditor" class="hidden mb-4">
+            <h3 class="text-xl font-bold mb-2">New Rules</h3>
+            <textarea id="newRulesTextarea" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2" rows="5"></textarea>
+            <div class="flex space-x-2">
+                <button id="saveNewRules" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Save New Rules</button>
+                <button id="hideNewRules" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Hide New Rules</button>
+            </div>
+        </div>
+
+        <div id="status" class="text-gray-600 italic mb-4"></div>
+
+        <div class="mb-4">
+            <h2 class="text-2xl font-bold mb-2">Conversation Transcript</h2>
+            <div id="transcript" class="bg-white shadow-md rounded p-4 h-48 overflow-y-auto"></div>
+        </div>
+
+        <div>
+            <h2 class="text-2xl font-bold mb-2">Conversation History</h2>
+            <div id="conversationHistory" class="bg-white shadow-md rounded p-4 h-48 overflow-y-auto"></div>
+        </div>
     </div>
-    <div class="field-group">
-        <label for="instanceName">Instance Name:</label>
-        <input type="text" id="instanceName" placeholder="Enter Instance Name">
-    </div>
-    <div class="field-group">
-        <label for="instancePassword">Instance Password:</label>
-        <input type="password" id="instancePassword" placeholder="Enter Instance Password">
-    </div>
-    <div class="field-group">
-        <label for="customerName">Customer Name:</label>
-        <input type="text" id="customerName" placeholder="Enter Customer Name">
-    </div>
-    <button id="saveSettings">Save Settings</button>
-
-    <div>
-        <button id="startConversation" disabled>Start Conversation</button>
-        <button id="stopRecording" disabled>Stop Recording</button>
-        <button id="pauseConversation" disabled>Pause Conversation</button>
-    </div>
-
-    <div>
-        <label for="newRule">Add a new rule:</label>
-        <input type="text" id="newRule" placeholder="Enter a new rule">
-        <button id="addRule">Add Rule</button>
-        <button id="viewNewRules">View/Edit New Rules</button>
-    </div>
-
-    <div id="newRulesEditor">
-        <h3>New Rules</h3>
-        <textarea id="newRulesTextarea"></textarea>
-        <button id="saveNewRules">Save New Rules</button>
-        <button id="hideNewRules">Hide New Rules</button>
-    </div>
-
-    <div id="status"></div>
-
-    <h2>Conversation Transcript</h2>
-    <div id="transcript"></div>
-
-    <h2>Conversation History</h2>
-    <div id="conversationHistory"></div>
 
     <script type="module" src="config.js"></script>
     <script type="module" src="apiInteractions.js"></script>

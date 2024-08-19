@@ -7,6 +7,7 @@ let recordingStream;
 
 export async function startRecording(onDataAvailable) {
     try {
+        console.log("Starting recording...");
         if (!navigator.mediaDevices) {
             throw new Error('Your browser does not support audio recording.');
         }
@@ -36,6 +37,7 @@ export async function startRecording(onDataAvailable) {
 }
 
 export function stopRecording() {
+    console.log("Stopping recording...");
     if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
         recordingStream.getTracks().forEach(track => track.stop());
@@ -43,22 +45,17 @@ export function stopRecording() {
 }
 
 export function playAudio(audioBlob) {
+    console.log("Playing audio...");
     return new Promise((resolve, reject) => {
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        audio.onended = () => {
-            URL.revokeObjectURL(audioUrl);
-            resolve();
-        };
-        audio.onerror = (error) => {
-            URL.revokeObjectURL(audioUrl);
-            reject(error);
-        };
-        audio.play();
+        const audio = new Audio(URL.createObjectURL(audioBlob));
+        audio.onended = resolve;
+        audio.onerror = reject;
+        audio.play().catch(reject);
     });
 }
 
 export async function handleNameRecording(audioBlob, apiKey) {
+    console.log("Handling name recording...");
     const nameTranscript = await transcribeAudio(audioBlob, apiKey);
     if (nameTranscript) {
         return await extractFirstName(nameTranscript, apiKey);
@@ -68,6 +65,7 @@ export async function handleNameRecording(audioBlob, apiKey) {
 }
 
 async function extractFirstName(fullName, apiKey) {
+    console.log("Extracting first name...");
     try {
         const response = await fetch(`${CONFIG.API_ENDPOINT}/chat/completions`, {
             method: 'POST',
@@ -78,7 +76,7 @@ async function extractFirstName(fullName, apiKey) {
             body: JSON.stringify({
                 model: CONFIG.GPT_MODEL,
                 messages: [
-                    { role: "system", content: "Extract only the first name from the given input. If there's no clear first name, return the full input." },
+                    { role: "system", content: "Extract only the name from the given input. If there's no clear name, return the full input." },
                     { role: "user", content: fullName }
                 ],
                 max_tokens: 50

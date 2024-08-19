@@ -12,13 +12,9 @@ export const CONFIG = {
 
     // UI Configuration
     UI_ELEMENTS: {
-        STATUS: 'status',
+        CONVERSATION_CONTROL: 'conversationControl',
+        CONVERSATION_STATUS: 'conversationStatus',
         TRANSCRIPT: 'transcript',
-        CONVERSATION_HISTORY: 'conversationHistory',
-        START_BUTTON: 'startConversation',
-        STOP_BUTTON: 'stopRecording',
-        PAUSE_BUTTON: 'pauseConversation',
-        RESET_BUTTON: 'resetConversation',
         API_KEY_INPUT: 'apiKey',
         INSTANCE_NAME_INPUT: 'instanceName',
         INSTANCE_PASSWORD_INPUT: 'instancePassword',
@@ -30,7 +26,9 @@ export const CONFIG = {
         RULES_TEXTAREA: 'newRulesTextarea',
         SAVE_RULES_BUTTON: 'saveNewRules',
         HIDE_RULES_BUTTON: 'hideNewRules',
-        RULES_EDITOR: 'newRulesEditor'
+        RULES_EDITOR: 'newRulesEditor',
+        START_BUTTON: 'startConversation',
+        STOP_RECORDING: 'stopRecording'
     },
 
     // Local Storage Keys
@@ -40,7 +38,6 @@ export const CONFIG = {
         INSTANCE_PASSWORD: 'instancePassword',
         CUSTOMER_NAME: 'customerName',
         CONVERSATION_HISTORY: 'conversationHistory',
-        CASE_OPENED: 'caseOpened',
         NEW_RULES: 'newRules'
     },
 
