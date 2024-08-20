@@ -5,30 +5,37 @@ import * as uiManager from './uiManager.js';
 
 let conversationState = 'idle';
 let userName = '';
-let currentAudioContext = null;
+let isAudioPlaying = false;
+let isRecording = false;
+window.userName = '';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+function initializeApp() {
+    attachEventListeners();
+    loadSettings();
+    loadNewRules();
+    updateConversationUI();
+}
+
+function attachEventListeners() {
     uiManager.addEventListenerToElement('saveSettings', 'click', saveSettings);
     uiManager.addEventListenerToElement('addRule', 'click', addRule);
     uiManager.addEventListenerToElement('viewNewRules', 'click', viewNewRules);
     uiManager.addEventListenerToElement('saveNewRules', 'click', saveNewRules);
-    uiManager.addEventListenerToElement('hideNewRules', 'click', hideNewRules);
+    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL, 'click', handleConversationControl);
+    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS, 'click', handleConversationStatus);
+    uiManager.addEventListenerToElement('toggleSettings', 'click', toggleSettings);
+    uiManager.addEventListenerToElement('showSettings', 'click', showSettings);
+}
 
-    const conversationControlButton = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL);
-    conversationControlButton.addEventListener('click', () => {
-        if (conversationState === 'idle') {
-            startNewConversation();
-        } else {
-            resetConversation();
-        }
-    });
-
-    const conversationStatusButton = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS);
-    conversationStatusButton.addEventListener('click', handleConversationStatus);
-
-    loadSettings();
-    updateConversationUI();
-});
+function handleConversationControl() {
+    if (conversationState === 'idle') {
+        startNewConversation();
+    } else {
+        resetConversation();
+    }
+}
 
 function saveSettings() {
     const apiKey = uiManager.getInputValue('apiKey');
@@ -41,10 +48,7 @@ function saveSettings() {
         localStorage.setItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME, instanceName);
         localStorage.setItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD, instancePassword);
         localStorage.setItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME, customerName);
-        uiManager.updateStatus('Settings saved successfully!');
         uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL]: true });
-    } else {
-        uiManager.updateStatus('Please enter all required fields.');
     }
 }
 
@@ -63,29 +67,40 @@ function loadSettings() {
     }
 }
 
+function loadNewRules() {
+    const savedRules = localStorage.getItem(CONFIG.STORAGE_KEYS.NEW_RULES);
+    if (savedRules) {
+        CONFIG.NEW_RULES = JSON.parse(savedRules);
+    }
+}
+
 function updateConversationUI() {
     const controlButton = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL);
     const statusButton = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS);
 
-    switch(conversationState) {
+    switch (conversationState) {
         case 'idle':
             controlButton.textContent = 'Start New Conversation';
+            controlButton.disabled = false;
             statusButton.textContent = '🛏️ Asleep';
             statusButton.disabled = true;
             break;
         case 'assistantTalking':
             controlButton.textContent = 'Reset Conversation';
-            statusButton.textContent = '🗣️ Now Assist Talking';
+            controlButton.disabled = false;
+            statusButton.textContent = '🗣️ Now Assist Talking...';
             statusButton.disabled = true;
             break;
         case 'userTalking':
             controlButton.textContent = 'Reset Conversation';
-            statusButton.textContent = '🔴 Talk... hit me when done';
+            controlButton.disabled = false;
+            statusButton.textContent = '🛑 Stop';
             statusButton.disabled = false;
             break;
         case 'processing':
             controlButton.textContent = 'Reset Conversation';
-            statusButton.textContent = '💭 Now Assist is thinking';
+            controlButton.disabled = false;
+            statusButton.textContent = '🧠 Thinking...';
             statusButton.disabled = true;
             break;
     }
@@ -97,105 +112,166 @@ async function startNewConversation() {
         return;
     }
     conversationState = 'assistantTalking';
+    isRecording = false;
     updateConversationUI();
     uiManager.clearTranscript();
     userName = '';
     const initialGreeting = "Hi, I'm Now Assist. To start off, please say your name.";
-    uiManager.updateTranscript('NOW ASSIST', initialGreeting);
+
     try {
+        uiManager.updateTranscript('🟢', initialGreeting);
         await respondWithSpeech(initialGreeting);
     } catch (error) {
         console.error('Error in startNewConversation:', error);
-        uiManager.updateStatus('Failed to start conversation. Please try again.');
-        conversationState = 'idle';
-        updateConversationUI();
+        await resetConversation();
     }
 }
 
-function resetConversation() {
+async function resetConversation() {
     console.log("Resetting conversation");
-    audioHandler.stopRecording();
-    if (currentAudioContext) {
-        currentAudioContext.close();
-        currentAudioContext = null;
+
+    if (audioHandler.isCurrentlyRecording()) {
+        audioHandler.stopRecording();
     }
+
+    audioHandler.stopAudioPlayback();
+    audioHandler.clearAudioCache();
+    await apiInteractions.cancelOngoingRequests();
+
     conversationState = 'idle';
     userName = '';
+    isAudioPlaying = false;
+    isRecording = false;
+
     uiManager.clearTranscript();
     updateConversationUI();
-    uiManager.updateStatus('Conversation has been reset. You can start a new conversation.');
 }
 
 function handleConversationStatus() {
     if (conversationState === 'userTalking') {
-        stopUserRecording();
+        if (audioHandler.isCurrentlyRecording()) {
+            audioHandler.stopRecording();
+            isRecording = false;
+            updateConversationUI();
+        }
     }
 }
 
 async function respondWithSpeech(text) {
     try {
         console.log("Starting respondWithSpeech function");
-        uiManager.updateTranscript('NOW ASSIST', text);
-        uiManager.updateStatus('Generating speech response...');
+        conversationState = 'assistantTalking';
+        updateConversationUI();
+
         const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
         console.log("API Key retrieved:", apiKey ? "Present" : "Missing");
 
         console.log("Calling textToSpeech function");
         const audioBlob = await apiInteractions.textToSpeech(text, apiKey);
+        if (!audioBlob) {
+            console.log("No audio blob received, likely due to request cancellation.");
+            return;
+        }
+
         console.log("Audio blob received:", audioBlob ? "Present" : "Missing");
 
-        uiManager.updateStatus('Playing response...');
-
         console.log("Calling playAudio function");
+        isAudioPlaying = true;
         await audioHandler.playAudio(audioBlob);
+        isAudioPlaying = false;
 
         console.log("Audio playback completed");
-        uiManager.updateStatus('Response complete. You can speak now.');
-        conversationState = 'userTalking';
-        updateConversationUI();
-        startRecording();
     } catch (error) {
-        console.error('Detailed error in respondWithSpeech:', error);
-        uiManager.updateStatus('Error occurred during speech synthesis. Please check console for details.');
-        conversationState = 'idle';
-        updateConversationUI();
+        if (error.name === 'AbortError') {
+            console.log('AbortError caught during respondWithSpeech:', error.message);
+        } else {
+            console.error('Detailed error in respondWithSpeech:', error);
+        }
+        await resetConversation();
+    } finally {
+        if (conversationState === 'assistantTalking') {
+            conversationState = 'userTalking';
+            updateConversationUI();
+            startRecording();  // Add this line to start recording after speaking
+        }
     }
 }
 
 function startRecording() {
-    audioHandler.startRecording(onAudioDataAvailable);
-}
-
-async function stopUserRecording() {
-    audioHandler.stopRecording();
-    conversationState = 'processing';
-    updateConversationUI();
-    uiManager.updateStatus('Processing your input...');
+    if (!audioHandler.isCurrentlyRecording()) {
+        audioHandler.startRecording(onAudioDataAvailable);
+        isRecording = true;
+        conversationState = 'userTalking';
+        updateConversationUI();
+        console.log("Recording started in startRecording function");
+    } else {
+        console.log("Already recording, startRecording function skipped");
+    }
 }
 
 async function onAudioDataAvailable(audioBlob) {
+    console.log("onAudioDataAvailable called");
     const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
+    if (!apiKey) {
+        console.error('API key is missing');
+        await resetConversation();
+        return;
+    }
 
-    if (!userName) {
-        userName = await audioHandler.handleNameRecording(audioBlob, apiKey);
-        uiManager.updateTranscript(userName, `My name is ${userName}`);
-        const acknowledgement = `Nice to meet you, ${userName}. How can I assist you today?`;
-        await respondWithSpeech(acknowledgement);
-    } else {
-        const transcript = await apiInteractions.transcribeAudio(audioBlob, apiKey);
-        if (transcript) {
-            uiManager.updateTranscript(userName, transcript);
-            const gpt4Response = await apiInteractions.processWithGPT4(
-                transcript, 
-                apiKey, 
-                uiManager.getConversationHistory(),
-                userName,
-                localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME),
-                localStorage.getItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME)
-            );
-            if (gpt4Response) {
-                await respondWithSpeech(gpt4Response);
+    conversationState = 'processing';
+    updateConversationUI();
+
+    try {
+        console.log("Current userName:", window.userName);
+        if (!window.userName) {
+            console.log("Attempting to handle name recording");
+            window.userName = await audioHandler.handleNameRecording(audioBlob, apiKey);
+            console.log("Extracted userName:", window.userName);
+            if (!window.userName) throw new Error('Failed to extract name');
+            try {
+                uiManager.updateTranscript('👤', `My name is ${window.userName}`);
+            } catch (error) {
+                console.error('Error updating transcript:', error);
             }
+            const acknowledgement = `Nice to meet you, ${window.userName}. How can I assist you today?`;
+            try {
+                uiManager.updateTranscript('🟢', acknowledgement);
+            } catch (error) {
+                console.error('Error updating transcript:', error);
+            }
+            try {
+                await respondWithSpeech(acknowledgement);
+            } catch (error) {
+                console.error('Error in respondWithSpeech:', error);
+            }
+        } else {
+            const userInput = await apiInteractions.transcribeAudio(audioBlob, apiKey);
+            if (!userInput) throw new Error('Failed to transcribe audio');
+            uiManager.updateTranscript('👤', userInput);
+
+            const assistantResponse = await apiInteractions.processWithGPT4(userInput, apiKey, uiManager.getConversationHistory(), window.userName, localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME), localStorage.getItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME));
+            if (!assistantResponse) throw new Error('Failed to get assistant response');
+
+            if (assistantResponse.startsWith("CONVERSATION_END")) {
+                uiManager.updateTranscript('🟢', assistantResponse.substring("CONVERSATION_END".length).trim());
+                await respondWithSpeech(assistantResponse.substring("CONVERSATION_END".length).trim());
+                await resetConversation();
+                return;
+            }
+
+            uiManager.updateTranscript('🟢', assistantResponse);
+            await respondWithSpeech(assistantResponse);
+        }
+    } catch (error) {
+        console.error('Detailed error in onAudioDataAvailable:', error);
+        if (error instanceof ReferenceError) {
+            console.error('ReferenceError details:', error.message);
+        }
+        await resetConversation();
+    } finally {
+        if (conversationState === 'processing') {
+            conversationState = 'userTalking';
+            updateConversationUI();
         }
     }
 }
@@ -205,26 +281,42 @@ function addRule() {
     if (newRule) {
         CONFIG.NEW_RULES.push(newRule);
         localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
-        uiManager.updateStatus('New rule added successfully.');
         uiManager.setInputValue('newRule', '');
         viewNewRules();
-    } else {
-        uiManager.updateStatus('Please enter a valid rule.');
     }
 }
 
 function viewNewRules() {
     uiManager.updateTextareaContent('newRulesTextarea', CONFIG.NEW_RULES.join('\n'));
     uiManager.toggleElementVisibility('newRulesEditor', true);
+    document.getElementById('viewNewRules').classList.add('hidden');
 }
 
 function saveNewRules() {
     const newRulesText = uiManager.getInputValue('newRulesTextarea');
     CONFIG.NEW_RULES = newRulesText.split('\n').filter(rule => rule.trim() !== '');
     localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
-    uiManager.updateStatus('New rules updated successfully.');
+    hideNewRules();
 }
 
 function hideNewRules() {
     uiManager.toggleElementVisibility('newRulesEditor', false);
+    document.getElementById('viewNewRules').classList.remove('hidden');
+}
+
+function toggleSettings() {
+    const settingsElement = document.getElementById('settings');
+    const showSettingsButton = document.getElementById('showSettings');
+    if (settingsElement.classList.contains('hidden')) {
+        settingsElement.classList.remove('hidden');
+        showSettingsButton.classList.add('hidden');
+    } else {
+        settingsElement.classList.add('hidden');
+        showSettingsButton.classList.remove('hidden');
+    }
+}
+
+function showSettings() {
+    document.getElementById('settings').classList.remove('hidden');
+    document.getElementById('showSettings').classList.add('hidden');
 }

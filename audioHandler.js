@@ -1,14 +1,22 @@
 import { CONFIG } from './config.js';
 import { transcribeAudio } from './apiInteractions.js';
+import { showAudioPlaybackIndicator, hideAudioPlaybackIndicator } from './uiManager.js';
 
 let mediaRecorder;
 let audioChunks = [];
 let recordingStream;
+let isRecording = false;
+let currentAudio = null;
+const audioCache = new Map();
 
 export async function startRecording(onDataAvailable) {
+    if (isRecording) {
+        console.log("Already recording, startRecording skipped");
+        return;
+    }
     try {
         console.log("Starting recording...");
-        if (!navigator.mediaDevices) {
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
             throw new Error('Your browser does not support audio recording.');
         }
 
@@ -23,13 +31,16 @@ export async function startRecording(onDataAvailable) {
 
         mediaRecorder.onstart = () => {
             console.log('Recording started...');
+            isRecording = true;
         };
 
         mediaRecorder.onstop = () => {
             console.log('Recording stopped.');
+            isRecording = false;
         };
 
         mediaRecorder.start();
+        console.log("Recording started in audioHandler");
     } catch (error) {
         console.error('Error starting recording:', error);
         throw error;
@@ -38,20 +49,67 @@ export async function startRecording(onDataAvailable) {
 
 export function stopRecording() {
     console.log("Stopping recording...");
-    if (mediaRecorder && mediaRecorder.state === "recording") {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
         mediaRecorder.stop();
+    }
+    if (recordingStream) {
         recordingStream.getTracks().forEach(track => track.stop());
     }
+    mediaRecorder = null;
+    recordingStream = null;
+    isRecording = false;
+}
+
+export function isCurrentlyRecording() {
+    return isRecording;
 }
 
 export function playAudio(audioBlob) {
-    console.log("Playing audio...");
     return new Promise((resolve, reject) => {
-        const audio = new Audio(URL.createObjectURL(audioBlob));
-        audio.onended = resolve;
-        audio.onerror = reject;
-        audio.play().catch(reject);
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.src = '';
+        }
+
+        if (audioCache.has(audioBlob)) {
+            currentAudio = new Audio(audioCache.get(audioBlob));
+        } else {
+            const audioURL = URL.createObjectURL(audioBlob);
+            audioCache.set(audioBlob, audioURL);
+            currentAudio = new Audio(audioURL);
+        }
+
+        showAudioPlaybackIndicator(); // Show indicator when playback starts
+
+        currentAudio.onended = () => {
+            URL.revokeObjectURL(currentAudio.src);
+            currentAudio = null;
+            hideAudioPlaybackIndicator(); // Hide indicator when playback ends
+            resolve();
+        };
+        currentAudio.onerror = (error) => {
+            hideAudioPlaybackIndicator(); // Hide indicator on error
+            reject(error);
+        };
+        currentAudio.play().catch((error) => {
+            hideAudioPlaybackIndicator(); // Hide indicator if playback fails
+            reject(error);
+        });
     });
+}
+
+export function stopAudioPlayback() {
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.src = '';
+        hideAudioPlaybackIndicator(); // Hide indicator when stopped manually
+        currentAudio = null;
+    }
+}
+
+export function clearAudioCache() {
+    audioCache.forEach(url => URL.revokeObjectURL(url));
+    audioCache.clear();
 }
 
 export async function handleNameRecording(audioBlob, apiKey) {
@@ -76,7 +134,7 @@ async function extractFirstName(fullName, apiKey) {
             body: JSON.stringify({
                 model: CONFIG.GPT_MODEL,
                 messages: [
-                    { role: "system", content: "Extract only the first name from the given input. If there's no clear first name, return the full input." },
+                    { role: "system", content: "Extract only the name from the given input. If there's no clear name, return the full input." },
                     { role: "user", content: fullName }
                 ],
                 max_tokens: 50

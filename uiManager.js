@@ -9,13 +9,20 @@ export function updateStatus(message) {
 }
 
 export function updateTranscript(role, text) {
+    console.log('Updating transcript:', role, text);
     const transcriptElement = document.getElementById(CONFIG.UI_ELEMENTS.TRANSCRIPT);
     if (transcriptElement) {
         const messageElement = document.createElement('p');
         messageElement.className = role.toLowerCase();
-        messageElement.innerText = `${role}: ${text}`;
+
+        // Use a ternary operator to avoid potential undefined variable issues
+        const speakerName = role === '🟢' ? 'Now Assist' : (window.userName || 'User');
+        messageElement.textContent = `${speakerName}: ${text}`;
+
         transcriptElement.appendChild(messageElement);
         transcriptElement.scrollTop = transcriptElement.scrollHeight;
+    } else {
+        console.error('Transcript element not found');
     }
 }
 
@@ -77,4 +84,51 @@ export function getConversationHistory() {
         }));
     }
     return [];
+}
+
+export function showAudioPlaybackIndicator() {
+    const statusElement = document.getElementById('audioStatus');
+    if (statusElement) {
+        statusElement.style.display = 'block';
+        statusElement.innerText = 'Playing audio...';
+    }
+}
+
+export function hideAudioPlaybackIndicator() {
+    const statusElement = document.getElementById('audioStatus');
+    if (statusElement) {
+        statusElement.style.display = 'none';
+    }
+}
+
+export function showLoadingIndicator() {
+    const statusElement = document.getElementById('status');
+    if (statusElement) {
+        statusElement.innerHTML = `<div class="loading-spinner"></div> Processing...`;
+    }
+}
+
+export function hideLoadingIndicator() {
+    const statusElement = document.getElementById('status');
+    if (statusElement) {
+        statusElement.innerHTML = '';  // Clear the loading message
+    }
+}
+
+export function showErrorMessage(errorType, details = '') {
+    let message = 'An error occurred.';
+    switch (errorType) {
+        case 'network':
+            message = 'Network error: Please check your internet connection.';
+            break;
+        case 'apiKeyMissing':
+            message = 'API key missing: Please enter your OpenAI API key in the settings.';
+            break;
+        case 'server':
+            message = 'Server error: There was a problem connecting to the server. Please try again later.';
+            break;
+        default:
+            message += ` Details: ${details}`;
+    }
+    updateStatus(message);
 }
