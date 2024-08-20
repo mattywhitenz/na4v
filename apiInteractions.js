@@ -6,7 +6,6 @@ export async function processWithGPT4(text, apiKey, conversationHistory, userNam
         if (CONFIG.NEW_RULES.length > 0) {
             fullPrompt += '\n' + CONFIG.NEW_RULES.map((rule, index) => `${12 + index}. ${rule}`).join('\n');
         }
-        fullPrompt += '\n- If the user indicates they want to end the conversation (e.g., by saying "no thanks", "that\'s all", "goodbye", etc.), respond with "CONVERSATION_END" followed by a polite goodbye message.';
         fullPrompt += '\nMESSAGE THREAD:';
 
         let messages = [

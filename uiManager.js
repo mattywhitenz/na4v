@@ -1,29 +1,28 @@
 import { CONFIG } from './config.js';
 
 export function updateStatus(message) {
-    const statusElement = document.getElementById(CONFIG.UI_ELEMENTS.STATUS);
+    const statusElement = document.getElementById('status');
     if (statusElement) {
         statusElement.innerText = message;
     }
     console.log(message);
 }
 
-export function displayConversationHistory(history) {
-    const historyDiv = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_HISTORY);
-    if (historyDiv) {
-        historyDiv.innerHTML = '';
-        history.forEach((item, index) => {
-            const p = document.createElement('p');
-            p.innerText = `${index + 1}. ${item.role}: ${item.text}`;
-            historyDiv.appendChild(p);
-        });
-    }
-}
-
 export function updateTranscript(role, text) {
     const transcriptElement = document.getElementById(CONFIG.UI_ELEMENTS.TRANSCRIPT);
     if (transcriptElement) {
-        transcriptElement.innerText += `\n${role}: ${text}`;
+        const messageElement = document.createElement('p');
+        messageElement.className = role.toLowerCase();
+        messageElement.innerText = `${role}: ${text}`;
+        transcriptElement.appendChild(messageElement);
+        transcriptElement.scrollTop = transcriptElement.scrollHeight;
+    }
+}
+
+export function clearTranscript() {
+    const transcriptElement = document.getElementById(CONFIG.UI_ELEMENTS.TRANSCRIPT);
+    if (transcriptElement) {
+        transcriptElement.innerHTML = '';
     }
 }
 
@@ -67,4 +66,15 @@ export function addEventListenerToElement(elementId, eventType, handler) {
     if (element) {
         element.addEventListener(eventType, handler);
     }
+}
+
+export function getConversationHistory() {
+    const transcriptElement = document.getElementById(CONFIG.UI_ELEMENTS.TRANSCRIPT);
+    if (transcriptElement) {
+        return Array.from(transcriptElement.children).map(child => ({
+            role: child.className,
+            text: child.innerText.split(': ')[1]
+        }));
+    }
+    return [];
 }

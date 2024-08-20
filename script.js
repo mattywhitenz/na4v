@@ -3,37 +3,46 @@ import * as apiInteractions from './apiInteractions.js';
 import * as audioHandler from './audioHandler.js';
 import * as uiManager from './uiManager.js';
 
-let conversationStarted = false;
+let conversationState = 'idle';
 let userName = '';
-let isPaused = false;
+let currentAudioContext = null;
 
-// Event listeners
 document.addEventListener('DOMContentLoaded', () => {
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.SAVE_SETTINGS_BUTTON, 'click', saveSettings);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.START_BUTTON, 'click', startNewConversation);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.STOP_BUTTON, 'click', stopRecording);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.PAUSE_BUTTON, 'click', pauseConversation);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.RESET_BUTTON, 'click', resetConversation);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.ADD_RULE_BUTTON, 'click', addRule);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.VIEW_RULES_BUTTON, 'click', viewNewRules);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.SAVE_RULES_BUTTON, 'click', saveNewRules);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.HIDE_RULES_BUTTON, 'click', hideNewRules);
+    uiManager.addEventListenerToElement('saveSettings', 'click', saveSettings);
+    uiManager.addEventListenerToElement('addRule', 'click', addRule);
+    uiManager.addEventListenerToElement('viewNewRules', 'click', viewNewRules);
+    uiManager.addEventListenerToElement('saveNewRules', 'click', saveNewRules);
+    uiManager.addEventListenerToElement('hideNewRules', 'click', hideNewRules);
+
+    const conversationControlButton = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL);
+    conversationControlButton.addEventListener('click', () => {
+        if (conversationState === 'idle') {
+            startNewConversation();
+        } else {
+            resetConversation();
+        }
+    });
+
+    const conversationStatusButton = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS);
+    conversationStatusButton.addEventListener('click', handleConversationStatus);
+
     loadSettings();
-    displayConversationHistory();
+    updateConversationUI();
 });
 
 function saveSettings() {
-    const apiKey = uiManager.getInputValue(CONFIG.UI_ELEMENTS.API_KEY_INPUT);
-    const instanceName = uiManager.getInputValue(CONFIG.UI_ELEMENTS.INSTANCE_NAME_INPUT);
-    const instancePassword = uiManager.getInputValue(CONFIG.UI_ELEMENTS.INSTANCE_PASSWORD_INPUT);
-    const customerName = uiManager.getInputValue(CONFIG.UI_ELEMENTS.CUSTOMER_NAME_INPUT);
+    const apiKey = uiManager.getInputValue('apiKey');
+    const instanceName = uiManager.getInputValue('instanceName');
+    const instancePassword = uiManager.getInputValue('instancePassword');
+    const customerName = uiManager.getInputValue('customerName');
+
     if (apiKey && instanceName && instancePassword && customerName) {
         localStorage.setItem(CONFIG.STORAGE_KEYS.API_KEY, apiKey);
         localStorage.setItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME, instanceName);
         localStorage.setItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD, instancePassword);
         localStorage.setItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME, customerName);
         uiManager.updateStatus('Settings saved successfully!');
-        uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.START_BUTTON]: true });
+        uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL]: true });
     } else {
         uiManager.updateStatus('Please enter all required fields.');
     }
@@ -44,62 +53,142 @@ function loadSettings() {
     const savedInstanceName = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
     const savedInstancePassword = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD);
     const savedCustomerName = localStorage.getItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME);
+
     if (savedApiKey && savedInstanceName && savedInstancePassword && savedCustomerName) {
-        uiManager.setInputValue(CONFIG.UI_ELEMENTS.API_KEY_INPUT, savedApiKey);
-        uiManager.setInputValue(CONFIG.UI_ELEMENTS.INSTANCE_NAME_INPUT, savedInstanceName);
-        uiManager.setInputValue(CONFIG.UI_ELEMENTS.INSTANCE_PASSWORD_INPUT, savedInstancePassword);
-        uiManager.setInputValue(CONFIG.UI_ELEMENTS.CUSTOMER_NAME_INPUT, savedCustomerName);
-        uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.START_BUTTON]: true });
+        uiManager.setInputValue('apiKey', savedApiKey);
+        uiManager.setInputValue('instanceName', savedInstanceName);
+        uiManager.setInputValue('instancePassword', savedInstancePassword);
+        uiManager.setInputValue('customerName', savedCustomerName);
+        uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL]: true });
     }
-    uiManager.updateUIControls({
-        [CONFIG.UI_ELEMENTS.STOP_BUTTON]: false,
-        [CONFIG.UI_ELEMENTS.PAUSE_BUTTON]: false
-    });
 }
 
-function startNewConversation() {
+function updateConversationUI() {
+    const controlButton = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL);
+    const statusButton = document.getElementById(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS);
+
+    switch(conversationState) {
+        case 'idle':
+            controlButton.textContent = 'Start New Conversation';
+            statusButton.textContent = '🛏️ Asleep';
+            statusButton.disabled = true;
+            break;
+        case 'assistantTalking':
+            controlButton.textContent = 'Reset Conversation';
+            statusButton.textContent = '🗣️ Now Assist Talking';
+            statusButton.disabled = true;
+            break;
+        case 'userTalking':
+            controlButton.textContent = 'Reset Conversation';
+            statusButton.textContent = '🔴 Talk... hit me when done';
+            statusButton.disabled = false;
+            break;
+        case 'processing':
+            controlButton.textContent = 'Reset Conversation';
+            statusButton.textContent = '💭 Now Assist is thinking';
+            statusButton.disabled = true;
+            break;
+    }
+}
+
+async function startNewConversation() {
+    if (conversationState !== 'idle') {
+        console.log("Conversation already in progress");
+        return;
+    }
+    conversationState = 'assistantTalking';
+    updateConversationUI();
+    uiManager.clearTranscript();
+    userName = '';
+    const initialGreeting = "Hi, I'm Now Assist. To start off, please say your name.";
+    uiManager.updateTranscript('NOW ASSIST', initialGreeting);
     try {
-        conversationStarted = false;
-        userName = '';
-        uiManager.updateTranscript('', ''); // Clear transcript
-        uiManager.displayConversationHistory([]);
-        const initialGreeting = "Hi, I'm Now Assist. To start off, please say your name.";
-        addToConversationHistory(initialGreeting, 'NOW ASSIST');
-        uiManager.updateUIControls({
-            [CONFIG.UI_ELEMENTS.START_BUTTON]: false,
-            [CONFIG.UI_ELEMENTS.STOP_BUTTON]: true,
-            [CONFIG.UI_ELEMENTS.PAUSE_BUTTON]: true
-        });
-        respondWithSpeech(initialGreeting);
+        await respondWithSpeech(initialGreeting);
     } catch (error) {
         console.error('Error in startNewConversation:', error);
-        uiManager.updateStatus('Failed to start conversation. Please check console for details.');
+        uiManager.updateStatus('Failed to start conversation. Please try again.');
+        conversationState = 'idle';
+        updateConversationUI();
     }
 }
 
-function onAudioDataAvailable(audioBlob) {
-    handleAudioInput(audioBlob);
+function resetConversation() {
+    console.log("Resetting conversation");
+    audioHandler.stopRecording();
+    if (currentAudioContext) {
+        currentAudioContext.close();
+        currentAudioContext = null;
+    }
+    conversationState = 'idle';
+    userName = '';
+    uiManager.clearTranscript();
+    updateConversationUI();
+    uiManager.updateStatus('Conversation has been reset. You can start a new conversation.');
 }
 
-async function handleAudioInput(audioBlob) {
+function handleConversationStatus() {
+    if (conversationState === 'userTalking') {
+        stopUserRecording();
+    }
+}
+
+async function respondWithSpeech(text) {
+    try {
+        console.log("Starting respondWithSpeech function");
+        uiManager.updateTranscript('NOW ASSIST', text);
+        uiManager.updateStatus('Generating speech response...');
+        const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
+        console.log("API Key retrieved:", apiKey ? "Present" : "Missing");
+
+        console.log("Calling textToSpeech function");
+        const audioBlob = await apiInteractions.textToSpeech(text, apiKey);
+        console.log("Audio blob received:", audioBlob ? "Present" : "Missing");
+
+        uiManager.updateStatus('Playing response...');
+
+        console.log("Calling playAudio function");
+        await audioHandler.playAudio(audioBlob);
+
+        console.log("Audio playback completed");
+        uiManager.updateStatus('Response complete. You can speak now.');
+        conversationState = 'userTalking';
+        updateConversationUI();
+        startRecording();
+    } catch (error) {
+        console.error('Detailed error in respondWithSpeech:', error);
+        uiManager.updateStatus('Error occurred during speech synthesis. Please check console for details.');
+        conversationState = 'idle';
+        updateConversationUI();
+    }
+}
+
+function startRecording() {
+    audioHandler.startRecording(onAudioDataAvailable);
+}
+
+async function stopUserRecording() {
+    audioHandler.stopRecording();
+    conversationState = 'processing';
+    updateConversationUI();
+    uiManager.updateStatus('Processing your input...');
+}
+
+async function onAudioDataAvailable(audioBlob) {
     const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
-    if (!conversationStarted) {
+
+    if (!userName) {
         userName = await audioHandler.handleNameRecording(audioBlob, apiKey);
-        addToConversationHistory(`My name is ${userName}`, userName);
+        uiManager.updateTranscript(userName, `My name is ${userName}`);
         const acknowledgement = `Nice to meet you, ${userName}. How can I assist you today?`;
-        uiManager.updateTranscript('NOW ASSIST', acknowledgement);
-        addToConversationHistory(acknowledgement, 'NOW ASSIST');
         await respondWithSpeech(acknowledgement);
-        conversationStarted = true;
     } else {
         const transcript = await apiInteractions.transcribeAudio(audioBlob, apiKey);
         if (transcript) {
             uiManager.updateTranscript(userName, transcript);
-            addToConversationHistory(transcript, userName);
             const gpt4Response = await apiInteractions.processWithGPT4(
-                transcript,
-                apiKey,
-                getConversationHistory(),
+                transcript, 
+                apiKey, 
+                uiManager.getConversationHistory(),
                 userName,
                 localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME),
                 localStorage.getItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME)
@@ -111,77 +200,13 @@ async function handleAudioInput(audioBlob) {
     }
 }
 
-async function respondWithSpeech(text) {
-    try {
-        uiManager.updateStatus('Generating speech response...');
-        const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
-        const audioBlob = await apiInteractions.textToSpeech(text, apiKey);
-        uiManager.updateStatus('Playing response...');
-        await audioHandler.playAudio(audioBlob);
-        uiManager.updateStatus('Response complete. Starting new recording...');
-        if (!isPaused) {
-            audioHandler.startRecording(onAudioDataAvailable);
-        }
-    } catch (error) {
-        console.error('Error in respondWithSpeech:', error);
-        uiManager.updateStatus('Error occurred during text-to-speech. Please check console for details.');
-    }
-}
-
-function stopRecording() {
-    audioHandler.stopRecording();
-    uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.STOP_BUTTON]: false });
-}
-
-function pauseConversation() {
-    isPaused = !isPaused;
-    if (isPaused) {
-        stopRecording();
-        uiManager.updateStatus('Conversation paused.');
-        uiManager.setInputValue(CONFIG.UI_ELEMENTS.PAUSE_BUTTON, 'Resume Conversation');
-    } else {
-        audioHandler.startRecording(onAudioDataAvailable);
-        uiManager.updateStatus('Conversation resumed.');
-        uiManager.setInputValue(CONFIG.UI_ELEMENTS.PAUSE_BUTTON, 'Pause Conversation');
-    }
-}
-
-function resetConversation() {
-    stopRecording();
-    conversationStarted = false;
-    userName = '';
-    isPaused = false;
-    localStorage.removeItem(CONFIG.STORAGE_KEYS.CONVERSATION_HISTORY);
-    localStorage.removeItem(CONFIG.STORAGE_KEYS.CASE_OPENED);
-    uiManager.displayConversationHistory([]);
-    uiManager.updateTranscript('', '');
-    uiManager.updateUIControls({
-        [CONFIG.UI_ELEMENTS.START_BUTTON]: true,
-        [CONFIG.UI_ELEMENTS.STOP_BUTTON]: false,
-        [CONFIG.UI_ELEMENTS.PAUSE_BUTTON]: false
-    });
-    uiManager.updateStatus('Conversation has been reset. You can start a new conversation.');
-    window.location.reload();
-}
-
-function addToConversationHistory(text, role) {
-    let history = getConversationHistory();
-    history.push({ role, text });
-    localStorage.setItem(CONFIG.STORAGE_KEYS.CONVERSATION_HISTORY, JSON.stringify(history));
-    uiManager.displayConversationHistory(history);
-}
-
-function getConversationHistory() {
-    return JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.CONVERSATION_HISTORY)) || [];
-}
-
 function addRule() {
-    const newRule = uiManager.getInputValue(CONFIG.UI_ELEMENTS.NEW_RULE_INPUT);
+    const newRule = uiManager.getInputValue('newRule');
     if (newRule) {
         CONFIG.NEW_RULES.push(newRule);
         localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
         uiManager.updateStatus('New rule added successfully.');
-        uiManager.setInputValue(CONFIG.UI_ELEMENTS.NEW_RULE_INPUT, '');
+        uiManager.setInputValue('newRule', '');
         viewNewRules();
     } else {
         uiManager.updateStatus('Please enter a valid rule.');
@@ -189,23 +214,17 @@ function addRule() {
 }
 
 function viewNewRules() {
-    uiManager.updateTextareaContent(CONFIG.UI_ELEMENTS.RULES_TEXTAREA, CONFIG.NEW_RULES.join('\n'));
-    uiManager.toggleElementVisibility(CONFIG.UI_ELEMENTS.RULES_EDITOR, true);
+    uiManager.updateTextareaContent('newRulesTextarea', CONFIG.NEW_RULES.join('\n'));
+    uiManager.toggleElementVisibility('newRulesEditor', true);
 }
 
 function saveNewRules() {
-    const newRulesText = uiManager.getInputValue(CONFIG.UI_ELEMENTS.RULES_TEXTAREA);
+    const newRulesText = uiManager.getInputValue('newRulesTextarea');
     CONFIG.NEW_RULES = newRulesText.split('\n').filter(rule => rule.trim() !== '');
     localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
     uiManager.updateStatus('New rules updated successfully.');
 }
 
 function hideNewRules() {
-    uiManager.toggleElementVisibility(CONFIG.UI_ELEMENTS.RULES_EDITOR, false);
-    uiManager.updateStatus('New rules hidden.');
-}
-
-function displayConversationHistory() {
-    const history = getConversationHistory();
-    uiManager.displayConversationHistory(history);
+    uiManager.toggleElementVisibility('newRulesEditor', false);
 }

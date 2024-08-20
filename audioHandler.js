@@ -76,7 +76,7 @@ async function extractFirstName(fullName, apiKey) {
             body: JSON.stringify({
                 model: CONFIG.GPT_MODEL,
                 messages: [
-                    { role: "system", content: "Extract only the name from the given input. If there's no clear name, return the full input." },
+                    { role: "system", content: "Extract only the first name from the given input. If there's no clear first name, return the full input." },
                     { role: "user", content: fullName }
                 ],
                 max_tokens: 50
