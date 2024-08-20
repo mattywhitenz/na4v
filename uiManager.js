@@ -11,18 +11,21 @@ export function updateStatus(message) {
 export function updateTranscript(role, text) {
     console.log('Updating transcript:', role, text);
     const transcriptElement = document.getElementById(CONFIG.UI_ELEMENTS.TRANSCRIPT);
-    if (transcriptElement) {
+    const transcriptContainer = document.getElementById('transcript-container');
+
+    if (transcriptElement && transcriptContainer) {
         const messageElement = document.createElement('p');
         messageElement.className = role.toLowerCase();
 
-        // Use a ternary operator to avoid potential undefined variable issues
         const speakerName = role === '🟢' ? 'Now Assist' : (window.userName || 'User');
         messageElement.textContent = `${speakerName}: ${text}`;
 
         transcriptElement.appendChild(messageElement);
-        transcriptElement.scrollTop = transcriptElement.scrollHeight;
+
+        // Scroll to the bottom of the container
+        transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
     } else {
-        console.error('Transcript element not found');
+        console.error('Transcript element or container not found');
     }
 }
 
@@ -71,7 +74,13 @@ export function setInputValue(elementId, value) {
 export function addEventListenerToElement(elementId, eventType, handler) {
     const element = document.getElementById(elementId);
     if (element) {
-        element.addEventListener(eventType, handler);
+        element.addEventListener(eventType, async (event) => {
+            try {
+                await handler(event);
+            } catch (error) {
+                console.error(`Error in event handler for ${elementId}:`, error);
+            }
+        });
     }
 }
 

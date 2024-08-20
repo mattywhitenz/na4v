@@ -2,23 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Now Assist - Voice Interactive AI Assistant</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <!-- Title -->
         <h1>Now Assist - Voice Interactive AI Assistant</h1>
 
-        <!-- Conversation Control Section -->
         <section id="conversation-control">
-            <button id="conversationControl">Start New Conversation</button>
-            <button id="conversationStatus" disabled>🛏️ Asleep</button>
+            <div class="button-container">
+                <button id="conversationControl">Start New Conversation</button>
+                <button id="conversationStatus" disabled>🛏️ Asleep</button>
+            </div>
         </section>
 
-        <!-- Conversation Section -->
         <section id="conversation">
             <h2>Conversation</h2>
             <div id="transcript-container">
@@ -26,7 +25,6 @@
             </div>
         </section>
 
-        <!-- Settings Section -->
         <section id="settings" class="hidden">
             <h2>Settings</h2>
             <div id="settingsContent">
@@ -46,31 +44,16 @@
                     <label for="customerName">Customer Name:</label>
                     <input type="text" id="customerName" placeholder="Enter Customer Name">
                 </div>
-                <div class="button-group">
-                    <button id="saveSettings">Save Settings</button>
-                    <button id="toggleSettings">Hide Settings</button>
-                </div>
+                <button id="saveSettings">Save Settings</button>
             </div>
         </section>
         <button id="showSettings">Show Settings</button>
 
-        <!-- Rules Section -->
-        <section id="rules">
-            <h2>Rules</h2>
-            <div class="rule-input">
-                <label for="newRule">Add a new rule:</label>
-                <input type="text" id="newRule" placeholder="Enter a new rule">
-                <button id="addRule">Add Rule</button>
-            </div>
-            <div id="newRulesEditor" style="display:none;">
-                <h3>New Rules</h3>
-                <textarea id="newRulesTextarea"></textarea>
-                <div class="button-group">
-                    <button id="saveNewRules">Save New Rules</button>
-                </div>
-            </div>
-            <button id="viewNewRules">View/Edit New Rules</button>
-        </section>
+        <button id="viewNewRules">View/Edit Rules</button>
+        <div id="newRulesEditor" class="hidden">
+            <textarea id="newRulesTextarea"></textarea>
+            <button id="saveNewRules">Save Rules</button>
+        </div>
     </div>
 
     <script type="module" src="config.js"></script>

@@ -19,21 +19,47 @@ function initializeApp() {
 }
 
 function attachEventListeners() {
-    uiManager.addEventListenerToElement('saveSettings', 'click', saveSettings);
-    uiManager.addEventListenerToElement('addRule', 'click', addRule);
-    uiManager.addEventListenerToElement('viewNewRules', 'click', viewNewRules);
-    uiManager.addEventListenerToElement('saveNewRules', 'click', saveNewRules);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL, 'click', handleConversationControl);
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS, 'click', handleConversationStatus);
-    uiManager.addEventListenerToElement('toggleSettings', 'click', toggleSettings);
-    uiManager.addEventListenerToElement('showSettings', 'click', showSettings);
+    uiManager.addEventListenerToElement('saveSettings', 'click', async (event) => {
+        event.preventDefault();
+        await saveSettings();
+        toggleSettings(); // Hide settings after saving
+    });
+
+    uiManager.addEventListenerToElement('viewNewRules', 'click', (event) => {
+        event.preventDefault();
+        viewNewRules();
+    });
+
+    uiManager.addEventListenerToElement('saveNewRules', 'click', (event) => {
+        event.preventDefault();
+        saveNewRules();
+    });
+
+    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL, 'click', async (event) => {
+        event.preventDefault();
+        await handleConversationControl();
+    });
+
+    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS, 'click', async (event) => {
+        event.preventDefault();
+        await handleConversationStatus();
+    });
+
+    uiManager.addEventListenerToElement('showSettings', 'click', (event) => {
+        event.preventDefault();
+        toggleSettings();
+    });
 }
 
-function handleConversationControl() {
-    if (conversationState === 'idle') {
-        startNewConversation();
-    } else {
-        resetConversation();
+async function handleConversationControl() {
+    try {
+        if (conversationState === 'idle') {
+            await startNewConversation();
+        } else {
+            await resetConversation();
+        }
+    } catch (error) {
+        console.error('Error in handleConversationControl:', error);
     }
 }
 
@@ -130,21 +156,25 @@ async function startNewConversation() {
 async function resetConversation() {
     console.log("Resetting conversation");
 
-    if (audioHandler.isCurrentlyRecording()) {
-        audioHandler.stopRecording();
+    try {
+        if (audioHandler.isCurrentlyRecording()) {
+            audioHandler.stopRecording();
+        }
+
+        audioHandler.stopAudioPlayback();
+        audioHandler.clearAudioCache();
+        await apiInteractions.cancelOngoingRequests();
+
+        conversationState = 'idle';
+        window.userName = '';
+        isAudioPlaying = false;
+        isRecording = false;
+
+        uiManager.clearTranscript();
+        updateConversationUI();
+    } catch (error) {
+        console.error('Error during conversation reset:', error);
     }
-
-    audioHandler.stopAudioPlayback();
-    audioHandler.clearAudioCache();
-    await apiInteractions.cancelOngoingRequests();
-
-    conversationState = 'idle';
-    userName = '';
-    isAudioPlaying = false;
-    isRecording = false;
-
-    uiManager.clearTranscript();
-    updateConversationUI();
 }
 
 function handleConversationStatus() {
@@ -289,19 +319,15 @@ function addRule() {
 function viewNewRules() {
     uiManager.updateTextareaContent('newRulesTextarea', CONFIG.NEW_RULES.join('\n'));
     uiManager.toggleElementVisibility('newRulesEditor', true);
-    document.getElementById('viewNewRules').classList.add('hidden');
+    uiManager.toggleElementVisibility('viewNewRules', false);
 }
 
 function saveNewRules() {
     const newRulesText = uiManager.getInputValue('newRulesTextarea');
     CONFIG.NEW_RULES = newRulesText.split('\n').filter(rule => rule.trim() !== '');
     localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
-    hideNewRules();
-}
-
-function hideNewRules() {
     uiManager.toggleElementVisibility('newRulesEditor', false);
-    document.getElementById('viewNewRules').classList.remove('hidden');
+    uiManager.toggleElementVisibility('viewNewRules', true);
 }
 
 function toggleSettings() {
@@ -314,9 +340,4 @@ function toggleSettings() {
         settingsElement.classList.add('hidden');
         showSettingsButton.classList.remove('hidden');
     }
-}
-
-function showSettings() {
-    document.getElementById('settings').classList.remove('hidden');
-    document.getElementById('showSettings').classList.add('hidden');
 }
