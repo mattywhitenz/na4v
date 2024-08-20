@@ -222,7 +222,7 @@ async function respondWithSpeech(text) {
         if (conversationState === 'assistantTalking') {
             conversationState = 'userTalking';
             updateConversationUI();
-            startRecording();  // Add this line to start recording after speaking
+            startRecording();
         }
     }
 }
@@ -289,6 +289,85 @@ async function onAudioDataAvailable(audioBlob) {
                 return;
             }
 
+            // Always trigger the case creation process
+            const openCaseMessage = "OK - let me open a case for you now. I'll need a few moments to get that started.";
+            uiManager.updateTranscript('🟢', openCaseMessage);
+            await respondWithSpeech(openCaseMessage);
+
+            const randomEmail = await apiInteractions.generateRandomEmail(apiKey);
+            console.log("Generated random email:", randomEmail);
+
+            // Create user record
+            try {
+                const instanceName = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
+                const newUser = await apiInteractions.createUser(randomEmail, apiKey, instanceName);
+                console.log("Created new user:", newUser);
+
+                // Get the full transcript
+                const fullTranscript = uiManager.getConversationHistory().map(item => `${item.role}: ${item.text}`).join('\n');
+
+                // Generate required data for interaction and HR case
+                const shortDescription = await apiInteractions.generateShortDescription(fullTranscript, apiKey);
+                const translatedTranscript = await apiInteractions.translateToEnglish(fullTranscript, apiKey);
+                const chatSummary = await apiInteractions.generateChatSummary(translatedTranscript, apiKey);
+
+                // Create interaction
+                const interactionData = {
+                    short_description: shortDescription,
+                    chat_summary: chatSummary,
+                    opened_for: newUser.sys_id,
+                    type: 'Phone',
+                    opened_by: newUser.sys_id,
+                    state: 'work_in_progress',
+                    assigned_to: 'b238bae2c3b38290071d9bbeb001314f',
+                    calling_number: randomEmail,
+                    transcript: translatedTranscript
+                };
+
+                const createdInteraction = await apiInteractions.createInteraction(instanceName, interactionData);
+                console.log("Created interaction:", createdInteraction);
+
+                // Create HR Case
+                const hrCaseData = {
+                    short_description: shortDescription,
+                    description: chatSummary,
+                    opened_for: newUser.sys_id,
+                    hr_service: '6628cde49f331200d9011976777fcf0b',
+                    subject_person: newUser.sys_id,
+                    state: 'ready',
+                    assigned_to: '4990c2c8dbae4b00ae3e9646db961940',
+                    contact_type: 'Phone'
+                };
+
+                const createdHRCase = await apiInteractions.createHRCase(instanceName, hrCaseData);
+                console.log("Created HR Case:", createdHRCase);
+
+                // Create Related Interaction Record
+                const relatedRecordData = {
+                    document_table: 'sn_hr_core_case',
+                    document_id: createdHRCase.sys_id,
+                    interaction: createdInteraction.sys_id
+                };
+
+                const createdRelatedRecord = await apiInteractions.createRelatedInteractionRecord(instanceName, relatedRecordData);
+                console.log("Created Related Interaction Record:", createdRelatedRecord);
+
+                // Get HR Case Details
+                const hrCaseDetails = await apiInteractions.getHRCaseDetails(instanceName, createdHRCase.sys_id);
+                console.log("Retrieved HR Case Details:", hrCaseDetails);
+
+                const caseOpenedMessage = `I've opened that case for you, ${window.userName} - for your reference, the case number is ${hrCaseDetails.number}. I'll send that to you now. What else can I do for you today?`;
+                uiManager.updateTranscript('🟢', caseOpenedMessage);
+                await respondWithSpeech(caseOpenedMessage);
+
+            } catch (error) {
+                console.error('Error in case creation process:', error);
+                const errorMessage = "I'm sorry, there was an error opening the case. Please try again later.";
+                uiManager.updateTranscript('🟢', errorMessage);
+                await respondWithSpeech(errorMessage);
+            }
+
+            // Continue with the conversation
             uiManager.updateTranscript('🟢', assistantResponse);
             await respondWithSpeech(assistantResponse);
         }
@@ -296,48 +375,48 @@ async function onAudioDataAvailable(audioBlob) {
         console.error('Detailed error in onAudioDataAvailable:', error);
         if (error instanceof ReferenceError) {
             console.error('ReferenceError details:', error.message);
-        }
-        await resetConversation();
-    } finally {
-        if (conversationState === 'processing') {
-            conversationState = 'userTalking';
-            updateConversationUI();
-        }
-    }
-}
+            }
+                    await resetConversation();
+                } finally {
+                    if (conversationState === 'processing') {
+                        conversationState = 'userTalking';
+                        updateConversationUI();
+                    }
+                }
+            }
 
-function addRule() {
-    const newRule = uiManager.getInputValue('newRule');
-    if (newRule) {
-        CONFIG.NEW_RULES.push(newRule);
-        localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
-        uiManager.setInputValue('newRule', '');
-        viewNewRules();
-    }
-}
+            function addRule() {
+                const newRule = uiManager.getInputValue('newRule');
+                if (newRule) {
+                    CONFIG.NEW_RULES.push(newRule);
+                    localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
+                    uiManager.setInputValue('newRule', '');
+                    viewNewRules();
+                }
+            }
 
-function viewNewRules() {
-    uiManager.updateTextareaContent('newRulesTextarea', CONFIG.NEW_RULES.join('\n'));
-    uiManager.toggleElementVisibility('newRulesEditor', true);
-    uiManager.toggleElementVisibility('viewNewRules', false);
-}
+            function viewNewRules() {
+                uiManager.updateTextareaContent('newRulesTextarea', CONFIG.NEW_RULES.join('\n'));
+                uiManager.toggleElementVisibility('newRulesEditor', true);
+                uiManager.toggleElementVisibility('viewNewRules', false);
+            }
 
-function saveNewRules() {
-    const newRulesText = uiManager.getInputValue('newRulesTextarea');
-    CONFIG.NEW_RULES = newRulesText.split('\n').filter(rule => rule.trim() !== '');
-    localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
-    uiManager.toggleElementVisibility('newRulesEditor', false);
-    uiManager.toggleElementVisibility('viewNewRules', true);
-}
+            function saveNewRules() {
+                const newRulesText = uiManager.getInputValue('newRulesTextarea');
+                CONFIG.NEW_RULES = newRulesText.split('\n').filter(rule => rule.trim() !== '');
+                localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
+                uiManager.toggleElementVisibility('newRulesEditor', false);
+                uiManager.toggleElementVisibility('viewNewRules', true);
+            }
 
-function toggleSettings() {
-    const settingsElement = document.getElementById('settings');
-    const showSettingsButton = document.getElementById('showSettings');
-    if (settingsElement.classList.contains('hidden')) {
-        settingsElement.classList.remove('hidden');
-        showSettingsButton.classList.add('hidden');
-    } else {
-        settingsElement.classList.add('hidden');
-        showSettingsButton.classList.remove('hidden');
-    }
-}
+            function toggleSettings() {
+                const settingsElement = document.getElementById('settings');
+                const showSettingsButton = document.getElementById('showSettings');
+                if (settingsElement.classList.contains('hidden')) {
+                    settingsElement.classList.remove('hidden');
+                    showSettingsButton.classList.add('hidden');
+                } else {
+                    settingsElement.classList.add('hidden');
+                    showSettingsButton.classList.remove('hidden');
+                }
+            }

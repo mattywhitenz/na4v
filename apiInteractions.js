@@ -1,6 +1,47 @@
 import { CONFIG } from './config.js';
 
+const ADMIN_USERNAME = 'admin';
 let currentRequest = null;
+const responseCache = new Map();
+
+function getInstancePassword() {
+    return localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD);
+}
+
+async function apiCall(url, method, body = null) {
+    try {
+        const password = getInstancePassword();
+        if (!password) {
+            throw new Error('Instance password not found in settings');
+        }
+
+        const options = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic ' + btoa(`${ADMIN_USERNAME}:${password}`)
+            }
+        };
+
+        if (body) {
+            options.body = JSON.stringify(body);
+        }
+
+        const response = await fetch(url, options);
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error(`HTTP error! status: ${response.status}, body: ${errorBody}`);
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.result;
+    } catch (error) {
+        console.error(`Error in API call to ${url}:`, error);
+        throw error;
+    }
+}
 
 export async function processWithGPT4(text, apiKey, conversationHistory, userName, instanceName, customerName) {
     const cacheKey = `${text}-${conversationHistory.length}`;
@@ -46,7 +87,7 @@ export async function processWithGPT4(text, apiKey, conversationHistory, userNam
         const data = await response.json();
         const result = data.choices[0].message.content.trim();
 
-        responseCache.set(cacheKey, result);  // Cache the response
+        responseCache.set(cacheKey, result);
         return result;
     } catch (error) {
         if (error.name === 'AbortError') {
@@ -60,7 +101,6 @@ export async function processWithGPT4(text, apiKey, conversationHistory, userNam
     }
 }
 
-// In apiInteractions.js
 export async function textToSpeech(text, apiKey) {
     try {
         console.log("Starting textToSpeech function");
@@ -93,7 +133,7 @@ export async function textToSpeech(text, apiKey) {
     } catch (error) {
         if (error.name === 'AbortError') {
             console.log('Request was aborted by the user or system:', error.message);
-            return null; // Abort was intended, so just return null
+            return null;
         }
         console.error('Error in textToSpeech:', error);
         throw error;
@@ -112,7 +152,6 @@ export function cancelOngoingRequests() {
         console.error("Error during request cancellation:", error);
     }
 }
-
 
 export async function transcribeAudio(audioBlob, apiKey) {
     try {
@@ -150,8 +189,146 @@ export async function transcribeAudio(audioBlob, apiKey) {
     }
 }
 
-const responseCache = new Map();
-
 export function clearResponseCache() {
     responseCache.clear();
+}
+
+export async function generateRandomEmail(apiKey) {
+    try {
+        const response = await fetch(`${CONFIG.API_ENDPOINT}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: CONFIG.GPT_MODEL,
+                messages: [
+                    { role: "system", content: "Generate a random, realistic email address." },
+                    { role: "user", content: "Generate a random email address" }
+                ],
+                max_tokens: 50
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    } catch (error) {
+        console.error('Error generating random email:', error);
+        throw error;
+    }
+}
+
+export async function createUser(email, apiKey, instanceName) {
+    try {
+        const url = `https://${instanceName}.service-now.com/api/now/table/sys_user`;
+
+        const firstName = await generateRandomName(apiKey, 'first');
+        const lastName = await generateRandomName(apiKey, 'last');
+
+        return await apiCall(url, 'POST', {
+            first_name: firstName,
+            last_name: lastName,
+            email: email
+        });
+    } catch (error) {
+        console.error('Error creating user:', error);
+        throw error;
+    }
+}
+
+async function generateRandomName(apiKey, type) {
+    try {
+        const response = await fetch(`${CONFIG.API_ENDPOINT}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: CONFIG.GPT_MODEL,
+                messages: [
+                    { role: "system", content: `Generate a random, realistic ${type} name.` },
+                    { role: "user", content: `Generate a random ${type} name` }
+                ],
+                max_tokens: 50
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    } catch (error) {
+        console.error(`Error generating random ${type} name:`, error);
+        throw error;
+    }
+}
+
+export async function generateShortDescription(transcript, apiKey) {
+    return await callGPT4(apiKey, "Create a short description of the case that the user wants to open in this transcript in 4 words.", transcript);
+}
+
+export async function translateToEnglish(transcript, apiKey) {
+    return await callGPT4(apiKey, "Translate all items into English if not already.", transcript);
+}
+
+export async function generateChatSummary(transcript, apiKey) {
+    return await callGPT4(apiKey, "Create a short, maximum 2 paragraph summary of this transcript.", transcript);
+}
+
+async function callGPT4(apiKey, instruction, content) {
+    try {
+        const response = await fetch(`${CONFIG.API_ENDPOINT}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: CONFIG.GPT_MODEL,
+                messages: [
+                    { role: "system", content: instruction },
+                    { role: "user", content: content }
+                ],
+                max_tokens: 150
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    } catch (error) {
+        console.error('Error in GPT-4 call:', error);
+        throw error;
+    }
+}
+
+export async function createInteraction(instanceName, interactionData) {
+    const url = `https://${instanceName}.service-now.com/api/now/table/interaction`;
+    return apiCall(url, 'POST', interactionData);
+}
+
+export async function createHRCase(instanceName, caseData) {
+    const url = `https://${instanceName}.service-now.com/api/now/table/sn_hr_core_case`;
+    return apiCall(url, 'POST', caseData);
+}
+
+export async function createRelatedInteractionRecord(instanceName, relatedRecordData) {
+    const url = `https://${instanceName}.service-now.com/api/now/table/interaction_related_record`;
+    return apiCall(url, 'POST', relatedRecordData);
+}
+
+export async function getHRCaseDetails(instanceName, caseId) {
+    const url = `https://${instanceName}.service-now.com/api/now/table/sn_hr_core_case/${caseId}`;
+    return apiCall(url, 'GET');
 }

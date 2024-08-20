@@ -18,7 +18,13 @@ export function updateTranscript(role, text) {
         messageElement.className = role.toLowerCase();
 
         const speakerName = role === '🟢' ? 'Now Assist' : (window.userName || 'User');
-        messageElement.textContent = `${speakerName}: ${text}`;
+
+        // Display only first name in the visible transcript
+        const displayName = speakerName.split(' ')[0];
+        messageElement.textContent = `${displayName}: ${text}`;
+
+        // Store full name in a data attribute for backend use
+        messageElement.setAttribute('data-full-name', speakerName);
 
         transcriptElement.appendChild(messageElement);
 
