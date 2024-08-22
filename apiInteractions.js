@@ -10,7 +10,7 @@ function getInstancePassword() {
 
 async function apiCall(url, method, body = null) {
     try {
-        const password = getInstancePassword();
+        const password = getInstancePassword(); // Retrieves the password from local storage
         if (!password) {
             throw new Error('Instance password not found in settings');
         }
@@ -19,7 +19,7 @@ async function apiCall(url, method, body = null) {
             method: method,
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Basic ' + btoa(`${ADMIN_USERNAME}:${password}`)
+                'Authorization': 'Basic ' + btoa(`${ADMIN_USERNAME}:${password}`) // Encoding the credentials
             }
         };
 
@@ -27,7 +27,10 @@ async function apiCall(url, method, body = null) {
             options.body = JSON.stringify(body);
         }
 
-        const response = await fetch(url, options);
+        console.log('Making API request to:', url);
+        console.log('Request options:', options);
+
+        const response = await fetch(url, options); // Making the API call
 
         if (!response.ok) {
             const errorBody = await response.text();
@@ -204,8 +207,8 @@ export async function generateRandomEmail(apiKey) {
             body: JSON.stringify({
                 model: CONFIG.GPT_MODEL,
                 messages: [
-                    { role: "system", content: "Generate a random, realistic email address." },
-                    { role: "user", content: "Generate a random email address" }
+                    { role: "system", content: "Generate a random, realistic email address. Produce only the email, no other text or quotation marks at all" },
+                    { role: "user", content: "enerate a random, realistic email address. Produce only the email, no other text or quotation marks at all" }
                 ],
                 max_tokens: 50
             })
@@ -223,22 +226,50 @@ export async function generateRandomEmail(apiKey) {
     }
 }
 
-export async function createUser(email, apiKey, instanceName) {
-    try {
-        const url = `https://${instanceName}.service-now.com/api/now/table/sys_user`;
+export async function createUser(randomEmail, apiKey, instanceName) {
+  const instancePassword = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD);
+  if (!instanceName || !instancePassword) {
+    throw new Error('Instance name or password is missing');
+  }
 
-        const firstName = await generateRandomName(apiKey, 'first');
-        const lastName = await generateRandomName(apiKey, 'last');
+  const url = `https://${instanceName}.service-now.com/api/now/table/sys_user`;
+  const body = {
+    first_name: "Jon",
+    last_name: "Smith",
+    email: randomEmail
+  };
 
-        return await apiCall(url, 'POST', {
-            first_name: firstName,
-            last_name: lastName,
-            email: email
-        });
-    } catch (error) {
-        console.error('Error creating user:', error);
-        throw error;
+  const base64Credentials = btoa(`admin:${instancePassword}`);
+
+  const options = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Basic ${base64Credentials}`
+    },
+    body: body
+  };
+
+  try {
+    const proxyResponse = await fetch('/api/servicenow-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, ...options })
+    });
+
+    if (!proxyResponse.ok) {
+      const errorDetails = await proxyResponse.text();
+      throw new Error(`HTTP error! status: ${proxyResponse.status}, details: ${errorDetails}`);
     }
+
+    const data = await proxyResponse.json();
+    console.log('User creation response:', data);
+
+    return data.result;
+  } catch (error) {
+    console.error('Error creating user:', error.message || error);
+    throw error;
+  }
 }
 
 async function generateRandomName(apiKey, type) {
@@ -252,8 +283,8 @@ async function generateRandomName(apiKey, type) {
             body: JSON.stringify({
                 model: CONFIG.GPT_MODEL,
                 messages: [
-                    { role: "system", content: `Generate a random, realistic ${type} name.` },
-                    { role: "user", content: `Generate a random ${type} name` }
+                    { role: "system", content: `Please generate only the first name from this user's name - do not produce any other text at all or any quoation marks - ${userName}.` },
+                    { role: "user", content: `Please generate only the last name from this user's name - do not produce any other text at all or any quoation marks - ${userName}.` }
                 ],
                 max_tokens: 50
             })

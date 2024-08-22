@@ -1,0 +1,14 @@
+{
+  "name": "now-assist",
+  "version": "1.0.0",
+  "description": "Now Assist - Voice Interactive AI Assistant",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test-server": "node test-server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "node-fetch": "^2.6.1"
+  }
+}
