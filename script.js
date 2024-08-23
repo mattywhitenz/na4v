@@ -14,17 +14,35 @@ document.addEventListener('DOMContentLoaded', initializeApp);
 function saveSettings() {
     const apiKey = uiManager.getInputValue('apiKey');
     const instanceName = uiManager.getInputValue('instanceName');
+    const instanceUsername = uiManager.getInputValue('instanceUsername');
     const instancePassword = uiManager.getInputValue('instancePassword');
     const customerName = uiManager.getInputValue('customerName');
 
-    if (apiKey && instanceName && instancePassword && customerName) {
+    if (apiKey && instanceName && instanceUsername && instancePassword && customerName) {
         localStorage.setItem(CONFIG.STORAGE_KEYS.API_KEY, apiKey);
         localStorage.setItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME, instanceName);
+        localStorage.setItem(CONFIG.STORAGE_KEYS.INSTANCE_USERNAME, instanceUsername);
         localStorage.setItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD, instancePassword);
         localStorage.setItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME, customerName);
+
+        // Update server-side environment variables
+        fetch('/update-env', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                SN_INSTANCE: instanceName,
+                SN_USERNAME: instanceUsername,
+                SN_PASSWORD: instancePassword
+            })
+        }).then(response => response.json())
+          .then(data => console.log(data.message))
+          .catch(error => console.error('Error updating environment variables:', error));
+
         uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL]: true });
     }
-    toggleSettings(); // Hide settings after saving
+    toggleSettings();
 }
 
 function loadSettings() {
@@ -145,34 +163,34 @@ function handleConversationStatus() {
 }
 
 async function respondWithSpeech(text) {
-  try {
-    console.log("Starting respondWithSpeech function");
-    conversationState = 'assistantTalking';
-    updateConversationUI();
+    try {
+        console.log("Starting respondWithSpeech function");
+        conversationState = 'assistantTalking';
+        updateConversationUI();
 
-    const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
-    console.log("API Key retrieved:", apiKey ? "Present" : "Missing");
+        const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
+        console.log("API Key retrieved:", apiKey ? "Present" : "Missing");
 
-    console.log("Calling textToSpeech function");
-    const audioBlob = await apiInteractions.textToSpeech(text, apiKey);
-    if (!audioBlob) {
-      console.log("No audio blob received, likely due to request cancellation.");
-      return;
-    }
+        console.log("Calling textToSpeech function");
+        const audioBlob = await apiInteractions.textToSpeech(text, apiKey);
+        if (!audioBlob) {
+            console.log("No audio blob received, likely due to request cancellation.");
+            return;
+        }
 
-    console.log("Audio blob received:", audioBlob ? "Present" : "Missing");
+        console.log("Audio blob received:", audioBlob ? "Present" : "Missing");
 
-    console.log("Calling playAudio function");
-    isAudioPlaying = true;
-    await audioHandler.playAudio(audioBlob);
-    isAudioPlaying = false;
+        console.log("Calling playAudio function");
+        isAudioPlaying = true;
+        await audioHandler.playAudio(audioBlob);
+        isAudioPlaying = false;
 
-    console.log("Audio playback completed");
-  } catch (error) {
-    console.error('Detailed error in respondWithSpeech:', error);
-    uiManager.showErrorMessage('general', error.message);
-    await resetConversation();
-  } finally {
+        console.log("Audio playback completed");
+    } catch (error) {
+        console.error('Detailed error in respondWithSpeech:', error);
+        uiManager.showErrorMessage('general', error.message);
+        await resetConversation();
+    } finally {
         if (conversationState === 'assistantTalking') {
             conversationState = 'userTalking';
             updateConversationUI();
@@ -232,85 +250,28 @@ async function onAudioDataAvailable(audioBlob) {
                 return;
             }
 
-            // Always trigger the case creation process
-            const openCaseMessage = "OK - let me open a case for you now. I'll need a few moments to get that started.";
-            uiManager.updateTranscript('🟢', openCaseMessage);
-            await respondWithSpeech(openCaseMessage);
+            if (userInput.toLowerCase().includes('open a case') || assistantResponse.toLowerCase().includes('open a case')) {
+                const openCaseMessage = "OK - let me open a case for you now. I'll need a few moments to get that started.";
+                uiManager.updateTranscript('🟢', openCaseMessage);
+                await respondWithSpeech(openCaseMessage);
 
-            const randomEmail = await apiInteractions.generateRandomEmail(apiKey);
-            console.log("Generated random email:", randomEmail);
-
-            // Create user record
-            try {
-                const instanceName = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
-                const newUser = await apiInteractions.createUser(randomEmail);
-                console.log("Created new user:", newUser);
-
-                // Get the full transcript
                 const fullTranscript = uiManager.getConversationHistory().map(item => `${item.role}: ${item.text}`).join('\n');
-
-                // Generate required data for interaction and HR case
                 const shortDescription = await apiInteractions.generateShortDescription(fullTranscript, apiKey);
-                const translatedTranscript = await apiInteractions.translateToEnglish(fullTranscript, apiKey);
-                const chatSummary = await apiInteractions.generateChatSummary(translatedTranscript, apiKey);
+                const caseSummary = await apiInteractions.generateChatSummary(fullTranscript, apiKey);
 
-                // Create interaction
-                const interactionData = {
-                    short_description: shortDescription,
-                    chat_summary: chatSummary,
-                    opened_for: newUser.result.sys_id,
-                    type: 'Phone',
-                    opened_by: newUser.result.sys_id,
-                    state: 'work_in_progress',
-                    assigned_to: 'b238bae2c3b38290071d9bbeb001314f',
-                    calling_number: randomEmail,
-                    transcript: translatedTranscript
+                const [firstName, ...lastNameParts] = window.userName.split(' ');
+                const lastName = lastNameParts.join(' ');
+
+                const userDetails = {
+                    firstName: firstName,
+                    lastName: lastName || 'Unknown',
+                    shortDescription: shortDescription,
+                    description: caseSummary
                 };
 
-                const createdInteraction = await apiInteractions.createInteraction(interactionData);
-                console.log("Created interaction:", createdInteraction);
-
-                // Create HR Case
-                const hrCaseData = {
-                    short_description: shortDescription,
-                    description: chatSummary,
-                    opened_for: newUser.result.sys_id,
-                    hr_service: '6628cde49f331200d9011976777fcf0b',
-                    subject_person: newUser.result.sys_id,
-                    state: 'ready',
-                    assigned_to: '4990c2c8dbae4b00ae3e9646db961940',
-                    contact_type: 'Phone'
-                };
-
-                const createdHRCase = await apiInteractions.createHRCase(hrCaseData);
-                console.log("Created HR Case:", createdHRCase);
-
-                // Create Related Interaction Record
-                const relatedRecordData = {
-                    document_table: 'sn_hr_core_case',
-                    document_id: createdHRCase.result.sys_id,
-                    interaction: createdInteraction.result.sys_id
-                };
-
-                const createdRelatedRecord = await apiInteractions.createRelatedInteractionRecord(relatedRecordData);
-                console.log("Created Related Interaction Record:", createdRelatedRecord);
-
-                // Get HR Case Details
-                const hrCaseDetails = await apiInteractions.getHRCaseDetails(createdHRCase.result.sys_id);
-                console.log("Retrieved HR Case Details:", hrCaseDetails);
-
-                const caseOpenedMessage = `I've opened that case for you, ${window.userName} - for your reference, the case number is ${hrCaseDetails.result.number}. I'll send that to you now. What else can I do for you today?`;
-                uiManager.updateTranscript('🟢', caseOpenedMessage);
-                await respondWithSpeech(caseOpenedMessage);
-
-            } catch (error) {
-                console.error('Error in case creation process:', error);
-                const errorMessage = "I'm sorry, there was an error opening the case. Please try again later.";
-                uiManager.updateTranscript('🟢', errorMessage);
-                await respondWithSpeech(errorMessage);
+                await createCase(userDetails);
             }
 
-            // Continue with the conversation
             uiManager.updateTranscript('🟢', assistantResponse);
             await respondWithSpeech(assistantResponse);
         }
@@ -325,6 +286,37 @@ async function onAudioDataAvailable(audioBlob) {
         }
     }
 }
+
+async function createCase(userDetails) {
+    try {
+        const response = await fetch('/create-case', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(userDetails)
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to create case');
+        }
+
+        const result = await response.json();
+        console.log('Case created:', result);
+
+        const caseCreatedMessage = `I've created a case for you. Your case number is ${result.hrCase.number}. Is there anything else I can help you with?`;
+        uiManager.updateTranscript('🟢', caseCreatedMessage);
+        await respondWithSpeech(caseCreatedMessage);
+
+    } catch (error) {
+        console.error('Error creating case:', error);
+        uiManager.showErrorMessage('caseCreationError', error.message);
+        const errorMessage = "I'm sorry, there was an error creating your case. Please try again later or contact support.";
+        uiManager.updateTranscript('🟢', errorMessage);
+        await respondWithSpeech(errorMessage);
+    }
+}
+
 
 function toggleSettings() {
     const settingsElement = document.getElementById('settings');
@@ -357,7 +349,6 @@ function saveNewRules() {
     alert('Rules saved successfully!');
 }
 
-// Modify the initializeApp function to include new event listeners
 function initializeApp() {
     attachEventListeners();
     loadSettings();
@@ -369,7 +360,7 @@ function attachEventListeners() {
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL, 'click', handleConversationControl);
     uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS, 'click', handleConversationStatus);
     uiManager.addEventListenerToElement('showSettings', 'click', toggleSettings);
-        uiManager.addEventListenerToElement('viewNewRules', 'click', toggleRulesEditor);
-        uiManager.addEventListenerToElement('saveNewRules', 'click', saveNewRules);
-        uiManager.addEventListenerToElement('hideNewRules', 'click', toggleRulesEditor);
-    }
+    uiManager.addEventListenerToElement('viewNewRules', 'click', toggleRulesEditor);
+    uiManager.addEventListenerToElement('saveNewRules', 'click', saveNewRules);
+    uiManager.addEventListenerToElement('hideNewRules', 'click', toggleRulesEditor);
+}

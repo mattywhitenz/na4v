@@ -6,6 +6,7 @@
     <title>Now Assist - Voice Interactive AI Assistant</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
 </head>
 <body>
     <div class="container">
@@ -37,6 +38,10 @@
                     <input type="text" id="instanceName" placeholder="Enter Instance Name">
                 </div>
                 <div class="field-group">
+                    <label for="instanceUsername">Instance Username:</label>
+                    <input type="text" id="instanceUsername" placeholder="Enter Instance Username">
+                </div>
+                <div class="field-group">
                     <label for="instancePassword">Instance Password:</label>
                     <input type="password" id="instancePassword" placeholder="Enter Instance Password">
                 </div>
@@ -56,10 +61,10 @@
         </div>
     </div>
 
-        <script type="module" src="config.js"></script>
-        <script type="module" src="apiInteractions.js"></script>
-        <script type="module" src="audioHandler.js"></script>
-        <script type="module" src="uiManager.js"></script>
-        <script type="module" src="script.js"></script>
-    </body>
-    </html>
+    <script type="module" src="config.js"></script>
+    <script type="module" src="apiInteractions.js"></script>
+    <script type="module" src="audioHandler.js"></script>
+    <script type="module" src="uiManager.js"></script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>

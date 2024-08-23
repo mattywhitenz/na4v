@@ -1,5 +1,7 @@
 import { CONFIG } from './config.js';
 
+let fullTranscript = [];
+
 export function updateStatus(message) {
     const statusElement = document.getElementById('status');
     if (statusElement) {
@@ -19,11 +21,16 @@ export function updateTranscript(role, text) {
 
         const speakerName = role === '🟢' ? 'Now Assist' : (window.userName || 'User');
         const displayName = speakerName.split(' ')[0];
-        messageElement.textContent = `${displayName}: ${text}`;
-        messageElement.setAttribute('data-full-name', speakerName);
+        messageElement.textContent = `${role} ${displayName}: ${text}`;
 
         transcriptElement.appendChild(messageElement);
         transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
+
+        // Store full transcript for case creation
+        fullTranscript.push({
+            role: role === '🟢' ? 'Now Assist' : window.userName,
+            text: text
+        });
     } else {
         console.error('Transcript element or container not found');
     }
@@ -34,6 +41,7 @@ export function clearTranscript() {
     if (transcriptElement) {
         transcriptElement.innerHTML = '';
     }
+    fullTranscript = [];
 }
 
 export function updateUIControls(controls) {
@@ -65,14 +73,7 @@ export function addEventListenerToElement(elementId, eventType, handler) {
 }
 
 export function getConversationHistory() {
-    const transcriptElement = document.getElementById(CONFIG.UI_ELEMENTS.TRANSCRIPT);
-    if (transcriptElement) {
-        return Array.from(transcriptElement.children).map(child => ({
-            role: child.className,
-            text: child.innerText.split(': ')[1]
-        }));
-    }
-    return [];
+    return fullTranscript;
 }
 
 export function showAudioPlaybackIndicator() {
@@ -101,6 +102,12 @@ export function showErrorMessage(errorType, details = '') {
             break;
         case 'server':
             message = 'Server error: There was a problem connecting to the server. Please try again later.';
+            break;
+        case 'credentialsMissing':
+            message = 'Credentials missing: Please ensure all required fields are filled in the settings.';
+            break;
+        case 'caseCreationError':
+            message = 'Error creating case: There was a problem creating the case. Please try again.';
             break;
         default:
             message += ` Details: ${details}`;

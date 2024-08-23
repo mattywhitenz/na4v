@@ -1,19 +1,18 @@
 import { CONFIG } from './config.js';
 
-// ServiceNow API Interactions
+async function callServiceNowAPI(endpoint, method, data = null) {
+  const instance = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
+  const username = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_USERNAME);
+  const password = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD);
 
-async function executeServiceNowFetch(endpoint, method, data = null) {
-  const instanceName = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
-  const instancePassword = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD);
-
-  if (!instanceName || !instancePassword) {
-    throw new Error('Instance name or password is missing');
+  if (!instance || !username || !password) {
+    throw new Error('ServiceNow credentials are missing. Please check your settings.');
   }
 
-  const url = `https://${instanceName}.service-now.com/api/now/table/${endpoint}`;
+  const url = `https://${instance}.service-now.com/api/now/table/${endpoint}`;
   const headers = {
     'Content-Type': 'application/json',
-    'Authorization': 'Basic ' + btoa(`admin:${instancePassword}`)
+    'Authorization': `Basic ${btoa(`${username}:${password}`)}`
   };
 
   const options = {
@@ -29,34 +28,61 @@ async function executeServiceNowFetch(endpoint, method, data = null) {
     }
     return await response.json();
   } catch (error) {
-    console.error(`Error executing fetch for ${endpoint}:`, error);
+    console.error(`Error calling ServiceNow API: ${error}`);
     throw error;
   }
 }
 
-export async function createUser(randomEmail) {
-  const userData = {
-    first_name: "Jon",
-    last_name: "Smith",
-    email: randomEmail
-  };
-  return executeServiceNowFetch('sys_user', 'POST', userData);
-}
+export async function createCase(userDetails = {}) {
+  try {
+    // Generate a random email if not provided
+    const email = userDetails.email || `user${Math.floor(Math.random() * 10000)}@example.com`;
 
-export async function createInteraction(interactionData) {
-  return executeServiceNowFetch('interaction', 'POST', interactionData);
-}
+    // Create user
+    console.log("Creating user...");
+    const user = await callServiceNowAPI('sys_user', 'POST', {
+      first_name: userDetails.firstName || "Test",
+      last_name: userDetails.lastName || "User",
+      email: email
+    });
+    console.log("User created:", user.result.sys_id);
 
-export async function createHRCase(caseData) {
-  return executeServiceNowFetch('sn_hr_core_case', 'POST', caseData);
-}
+    // Create interaction
+    console.log("Creating interaction...");
+    const interaction = await callServiceNowAPI('interaction', 'POST', {
+      opened_for: user.result.sys_id,
+      short_description: userDetails.shortDescription || "Voice-triggered interaction"
+    });
+    console.log("Interaction created:", interaction.result.sys_id);
 
-export async function createRelatedInteractionRecord(relatedRecordData) {
-  return executeServiceNowFetch('interaction_related_record', 'POST', relatedRecordData);
-}
+    // Create HR case
+    console.log("Creating HR case...");
+    const hrCase = await callServiceNowAPI('sn_hr_core_case', 'POST', {
+      opened_for: user.result.sys_id,
+      short_description: userDetails.shortDescription || "Voice-triggered HR case",
+      description: userDetails.description || "This is an HR case created via voice automation"
+    });
+    console.log("HR case created:", hrCase.result.sys_id);
 
-export async function getHRCaseDetails(caseId) {
-  return executeServiceNowFetch(`sn_hr_core_case/${caseId}`, 'GET');
+    // Create related interaction record
+    console.log("Creating related interaction record...");
+    const relatedRecord = await callServiceNowAPI('interaction_related_record', 'POST', {
+      interaction: interaction.result.sys_id,
+      document_id: hrCase.result.sys_id,
+      document_table: 'sn_hr_core_case'
+    });
+    console.log("Related interaction record created:", relatedRecord.result.sys_id);
+
+    return {
+      user: user.result,
+      interaction: interaction.result,
+      hrCase: hrCase.result,
+      relatedRecord: relatedRecord.result
+    };
+  } catch (error) {
+    console.error("Error in case creation process:", error);
+    throw error;
+  }
 }
 
 // OpenAI API Interactions
@@ -133,7 +159,6 @@ export async function textToSpeech(text, apiKey) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    // Get the response as a blob
     const audioBlob = await response.blob();
     return audioBlob;
   } catch (error) {
@@ -191,20 +216,6 @@ export async function generateShortDescription(transcript, apiKey) {
       { role: "user", content: transcript }
     ],
     max_tokens: 50
-  };
-
-  const response = await executeOpenAIFetch('chat/completions', 'POST', data, apiKey);
-  return response.choices[0].message.content.trim();
-}
-
-export async function translateToEnglish(transcript, apiKey) {
-  const data = {
-    model: CONFIG.GPT_MODEL,
-    messages: [
-      { role: "system", content: "Translate all items into English if not already." },
-      { role: "user", content: transcript }
-    ],
-    max_tokens: 1000
   };
 
   const response = await executeOpenAIFetch('chat/completions', 'POST', data, apiKey);
