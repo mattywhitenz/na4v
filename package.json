@@ -1,10 +1,13 @@
 {
   "name": "now-assist",
   "version": "1.0.0",
-  "description": "Now Assist - Voice Interactive AI Assistant",
-  "main": "script.js",
+  "description": "Now Assist - ServiceNow API Connection",
+  "main": "servicenow.js",
   "scripts": {
-    "start": "echo 'This is a browser-based application. Please open index.html in a web browser.'"
+    "start": "node servicenow.js"
   },
-  "dependencies": {}
+  "dependencies": {
+    "node-fetch": "^2.6.1",
+    "dotenv": "^10.0.0"
+  }
 }
