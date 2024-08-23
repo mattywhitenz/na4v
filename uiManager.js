@@ -18,17 +18,11 @@ export function updateTranscript(role, text) {
         messageElement.className = role.toLowerCase();
 
         const speakerName = role === '🟢' ? 'Now Assist' : (window.userName || 'User');
-
-        // Display only first name in the visible transcript
         const displayName = speakerName.split(' ')[0];
         messageElement.textContent = `${displayName}: ${text}`;
-
-        // Store full name in a data attribute for backend use
         messageElement.setAttribute('data-full-name', speakerName);
 
         transcriptElement.appendChild(messageElement);
-
-        // Scroll to the bottom of the container
         transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
     } else {
         console.error('Transcript element or container not found');
@@ -51,20 +45,6 @@ export function updateUIControls(controls) {
     }
 }
 
-export function toggleElementVisibility(elementId, show) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.style.display = show ? 'block' : 'none';
-    }
-}
-
-export function updateTextareaContent(elementId, content) {
-    const textarea = document.getElementById(elementId);
-    if (textarea) {
-        textarea.value = content;
-    }
-}
-
 export function getInputValue(elementId) {
     const input = document.getElementById(elementId);
     return input ? input.value : '';
@@ -80,13 +60,7 @@ export function setInputValue(elementId, value) {
 export function addEventListenerToElement(elementId, eventType, handler) {
     const element = document.getElementById(elementId);
     if (element) {
-        element.addEventListener(eventType, async (event) => {
-            try {
-                await handler(event);
-            } catch (error) {
-                console.error(`Error in event handler for ${elementId}:`, error);
-            }
-        });
+        element.addEventListener(eventType, handler);
     }
 }
 
@@ -113,20 +87,6 @@ export function hideAudioPlaybackIndicator() {
     const statusElement = document.getElementById('audioStatus');
     if (statusElement) {
         statusElement.style.display = 'none';
-    }
-}
-
-export function showLoadingIndicator() {
-    const statusElement = document.getElementById('status');
-    if (statusElement) {
-        statusElement.innerHTML = `<div class="loading-spinner"></div> Processing...`;
-    }
-}
-
-export function hideLoadingIndicator() {
-    const statusElement = document.getElementById('status');
-    if (statusElement) {
-        statusElement.innerHTML = '';  // Clear the loading message
     }
 }
 

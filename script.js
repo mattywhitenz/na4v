@@ -11,58 +11,6 @@ window.userName = '';
 
 document.addEventListener('DOMContentLoaded', initializeApp);
 
-function initializeApp() {
-    attachEventListeners();
-    loadSettings();
-    loadNewRules();
-    updateConversationUI();
-}
-
-function attachEventListeners() {
-    uiManager.addEventListenerToElement('saveSettings', 'click', async (event) => {
-        event.preventDefault();
-        await saveSettings();
-        toggleSettings(); // Hide settings after saving
-    });
-
-    uiManager.addEventListenerToElement('viewNewRules', 'click', (event) => {
-        event.preventDefault();
-        viewNewRules();
-    });
-
-    uiManager.addEventListenerToElement('saveNewRules', 'click', (event) => {
-        event.preventDefault();
-        saveNewRules();
-    });
-
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL, 'click', async (event) => {
-        event.preventDefault();
-        await handleConversationControl();
-    });
-
-    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS, 'click', async (event) => {
-        event.preventDefault();
-        await handleConversationStatus();
-    });
-
-    uiManager.addEventListenerToElement('showSettings', 'click', (event) => {
-        event.preventDefault();
-        toggleSettings();
-    });
-}
-
-async function handleConversationControl() {
-    try {
-        if (conversationState === 'idle') {
-            await startNewConversation();
-        } else {
-            await resetConversation();
-        }
-    } catch (error) {
-        console.error('Error in handleConversationControl:', error);
-    }
-}
-
 function saveSettings() {
     const apiKey = uiManager.getInputValue('apiKey');
     const instanceName = uiManager.getInputValue('instanceName');
@@ -76,6 +24,7 @@ function saveSettings() {
         localStorage.setItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME, customerName);
         uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL]: true });
     }
+    toggleSettings(); // Hide settings after saving
 }
 
 function loadSettings() {
@@ -90,13 +39,6 @@ function loadSettings() {
         uiManager.setInputValue('instancePassword', savedInstancePassword);
         uiManager.setInputValue('customerName', savedCustomerName);
         uiManager.updateUIControls({ [CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL]: true });
-    }
-}
-
-function loadNewRules() {
-    const savedRules = localStorage.getItem(CONFIG.STORAGE_KEYS.NEW_RULES);
-    if (savedRules) {
-        CONFIG.NEW_RULES = JSON.parse(savedRules);
     }
 }
 
@@ -132,6 +74,19 @@ function updateConversationUI() {
     }
 }
 
+async function handleConversationControl() {
+    try {
+        if (conversationState === 'idle') {
+            await startNewConversation();
+        } else {
+            await resetConversation();
+        }
+    } catch (error) {
+        console.error('Error in handleConversationControl:', error);
+        uiManager.showErrorMessage('general', error.message);
+    }
+}
+
 async function startNewConversation() {
     if (conversationState !== 'idle') {
         console.log("Conversation already in progress");
@@ -149,6 +104,7 @@ async function startNewConversation() {
         await respondWithSpeech(initialGreeting);
     } catch (error) {
         console.error('Error in startNewConversation:', error);
+        uiManager.showErrorMessage('general', error.message);
         await resetConversation();
     }
 }
@@ -174,6 +130,7 @@ async function resetConversation() {
         updateConversationUI();
     } catch (error) {
         console.error('Error during conversation reset:', error);
+        uiManager.showErrorMessage('general', error.message);
     }
 }
 
@@ -188,37 +145,34 @@ function handleConversationStatus() {
 }
 
 async function respondWithSpeech(text) {
-    try {
-        console.log("Starting respondWithSpeech function");
-        conversationState = 'assistantTalking';
-        updateConversationUI();
+  try {
+    console.log("Starting respondWithSpeech function");
+    conversationState = 'assistantTalking';
+    updateConversationUI();
 
-        const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
-        console.log("API Key retrieved:", apiKey ? "Present" : "Missing");
+    const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
+    console.log("API Key retrieved:", apiKey ? "Present" : "Missing");
 
-        console.log("Calling textToSpeech function");
-        const audioBlob = await apiInteractions.textToSpeech(text, apiKey);
-        if (!audioBlob) {
-            console.log("No audio blob received, likely due to request cancellation.");
-            return;
-        }
+    console.log("Calling textToSpeech function");
+    const audioBlob = await apiInteractions.textToSpeech(text, apiKey);
+    if (!audioBlob) {
+      console.log("No audio blob received, likely due to request cancellation.");
+      return;
+    }
 
-        console.log("Audio blob received:", audioBlob ? "Present" : "Missing");
+    console.log("Audio blob received:", audioBlob ? "Present" : "Missing");
 
-        console.log("Calling playAudio function");
-        isAudioPlaying = true;
-        await audioHandler.playAudio(audioBlob);
-        isAudioPlaying = false;
+    console.log("Calling playAudio function");
+    isAudioPlaying = true;
+    await audioHandler.playAudio(audioBlob);
+    isAudioPlaying = false;
 
-        console.log("Audio playback completed");
-    } catch (error) {
-        if (error.name === 'AbortError') {
-            console.log('AbortError caught during respondWithSpeech:', error.message);
-        } else {
-            console.error('Detailed error in respondWithSpeech:', error);
-        }
-        await resetConversation();
-    } finally {
+    console.log("Audio playback completed");
+  } catch (error) {
+    console.error('Detailed error in respondWithSpeech:', error);
+    uiManager.showErrorMessage('general', error.message);
+    await resetConversation();
+  } finally {
         if (conversationState === 'assistantTalking') {
             conversationState = 'userTalking';
             updateConversationUI();
@@ -244,6 +198,7 @@ async function onAudioDataAvailable(audioBlob) {
     const apiKey = localStorage.getItem(CONFIG.STORAGE_KEYS.API_KEY);
     if (!apiKey) {
         console.error('API key is missing');
+        uiManager.showErrorMessage('apiKeyMissing');
         await resetConversation();
         return;
     }
@@ -258,22 +213,10 @@ async function onAudioDataAvailable(audioBlob) {
             window.userName = await audioHandler.handleNameRecording(audioBlob, apiKey);
             console.log("Extracted userName:", window.userName);
             if (!window.userName) throw new Error('Failed to extract name');
-            try {
-                uiManager.updateTranscript('👤', `My name is ${window.userName}`);
-            } catch (error) {
-                console.error('Error updating transcript:', error);
-            }
+            uiManager.updateTranscript('👤', `My name is ${window.userName}`);
             const acknowledgement = `Nice to meet you, ${window.userName}. How can I assist you today?`;
-            try {
-                uiManager.updateTranscript('🟢', acknowledgement);
-            } catch (error) {
-                console.error('Error updating transcript:', error);
-            }
-            try {
-                await respondWithSpeech(acknowledgement);
-            } catch (error) {
-                console.error('Error in respondWithSpeech:', error);
-            }
+            uiManager.updateTranscript('🟢', acknowledgement);
+            await respondWithSpeech(acknowledgement);
         } else {
             const userInput = await apiInteractions.transcribeAudio(audioBlob, apiKey);
             if (!userInput) throw new Error('Failed to transcribe audio');
@@ -300,7 +243,7 @@ async function onAudioDataAvailable(audioBlob) {
             // Create user record
             try {
                 const instanceName = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
-                const newUser = await apiInteractions.createUser(randomEmail, apiKey, instanceName);
+                const newUser = await apiInteractions.createUser(randomEmail);
                 console.log("Created new user:", newUser);
 
                 // Get the full transcript
@@ -315,48 +258,48 @@ async function onAudioDataAvailable(audioBlob) {
                 const interactionData = {
                     short_description: shortDescription,
                     chat_summary: chatSummary,
-                    opened_for: newUser.sys_id,
+                    opened_for: newUser.result.sys_id,
                     type: 'Phone',
-                    opened_by: newUser.sys_id,
+                    opened_by: newUser.result.sys_id,
                     state: 'work_in_progress',
                     assigned_to: 'b238bae2c3b38290071d9bbeb001314f',
                     calling_number: randomEmail,
                     transcript: translatedTranscript
                 };
 
-                const createdInteraction = await apiInteractions.createInteraction(instanceName, interactionData);
+                const createdInteraction = await apiInteractions.createInteraction(interactionData);
                 console.log("Created interaction:", createdInteraction);
 
                 // Create HR Case
                 const hrCaseData = {
                     short_description: shortDescription,
                     description: chatSummary,
-                    opened_for: newUser.sys_id,
+                    opened_for: newUser.result.sys_id,
                     hr_service: '6628cde49f331200d9011976777fcf0b',
-                    subject_person: newUser.sys_id,
+                    subject_person: newUser.result.sys_id,
                     state: 'ready',
                     assigned_to: '4990c2c8dbae4b00ae3e9646db961940',
                     contact_type: 'Phone'
                 };
 
-                const createdHRCase = await apiInteractions.createHRCase(instanceName, hrCaseData);
+                const createdHRCase = await apiInteractions.createHRCase(hrCaseData);
                 console.log("Created HR Case:", createdHRCase);
 
                 // Create Related Interaction Record
                 const relatedRecordData = {
                     document_table: 'sn_hr_core_case',
-                    document_id: createdHRCase.sys_id,
-                    interaction: createdInteraction.sys_id
+                    document_id: createdHRCase.result.sys_id,
+                    interaction: createdInteraction.result.sys_id
                 };
 
-                const createdRelatedRecord = await apiInteractions.createRelatedInteractionRecord(instanceName, relatedRecordData);
+                const createdRelatedRecord = await apiInteractions.createRelatedInteractionRecord(relatedRecordData);
                 console.log("Created Related Interaction Record:", createdRelatedRecord);
 
                 // Get HR Case Details
-                const hrCaseDetails = await apiInteractions.getHRCaseDetails(instanceName, createdHRCase.sys_id);
+                const hrCaseDetails = await apiInteractions.getHRCaseDetails(createdHRCase.result.sys_id);
                 console.log("Retrieved HR Case Details:", hrCaseDetails);
 
-                const caseOpenedMessage = `I've opened that case for you, ${window.userName} - for your reference, the case number is ${hrCaseDetails.number}. I'll send that to you now. What else can I do for you today?`;
+                const caseOpenedMessage = `I've opened that case for you, ${window.userName} - for your reference, the case number is ${hrCaseDetails.result.number}. I'll send that to you now. What else can I do for you today?`;
                 uiManager.updateTranscript('🟢', caseOpenedMessage);
                 await respondWithSpeech(caseOpenedMessage);
 
@@ -373,50 +316,60 @@ async function onAudioDataAvailable(audioBlob) {
         }
     } catch (error) {
         console.error('Detailed error in onAudioDataAvailable:', error);
-        if (error instanceof ReferenceError) {
-            console.error('ReferenceError details:', error.message);
-            }
-                    await resetConversation();
-                } finally {
-                    if (conversationState === 'processing') {
-                        conversationState = 'userTalking';
-                        updateConversationUI();
-                    }
-                }
-            }
+        uiManager.showErrorMessage('general', error.message);
+        await resetConversation();
+    } finally {
+        if (conversationState === 'processing') {
+            conversationState = 'userTalking';
+            updateConversationUI();
+        }
+    }
+}
 
-            function addRule() {
-                const newRule = uiManager.getInputValue('newRule');
-                if (newRule) {
-                    CONFIG.NEW_RULES.push(newRule);
-                    localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
-                    uiManager.setInputValue('newRule', '');
-                    viewNewRules();
-                }
-            }
+function toggleSettings() {
+    const settingsElement = document.getElementById('settings');
+    const showSettingsButton = document.getElementById('showSettings');
+    if (settingsElement.classList.contains('hidden')) {
+        settingsElement.classList.remove('hidden');
+        showSettingsButton.classList.add('hidden');
+    } else {
+        settingsElement.classList.add('hidden');
+        showSettingsButton.classList.remove('hidden');
+    }
+}
 
-            function viewNewRules() {
-                uiManager.updateTextareaContent('newRulesTextarea', CONFIG.NEW_RULES.join('\n'));
-                uiManager.toggleElementVisibility('newRulesEditor', true);
-                uiManager.toggleElementVisibility('viewNewRules', false);
-            }
+function toggleRulesEditor() {
+    const rulesEditor = document.getElementById('newRulesEditor');
+    const rulesTextarea = document.getElementById('newRulesTextarea');
 
-            function saveNewRules() {
-                const newRulesText = uiManager.getInputValue('newRulesTextarea');
-                CONFIG.NEW_RULES = newRulesText.split('\n').filter(rule => rule.trim() !== '');
-                localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, JSON.stringify(CONFIG.NEW_RULES));
-                uiManager.toggleElementVisibility('newRulesEditor', false);
-                uiManager.toggleElementVisibility('viewNewRules', true);
-            }
+    if (rulesEditor.classList.contains('hidden')) {
+        rulesEditor.classList.remove('hidden');
+        rulesTextarea.value = localStorage.getItem(CONFIG.STORAGE_KEYS.NEW_RULES) || '';
+    } else {
+        rulesEditor.classList.add('hidden');
+    }
+}
 
-            function toggleSettings() {
-                const settingsElement = document.getElementById('settings');
-                const showSettingsButton = document.getElementById('showSettings');
-                if (settingsElement.classList.contains('hidden')) {
-                    settingsElement.classList.remove('hidden');
-                    showSettingsButton.classList.add('hidden');
-                } else {
-                    settingsElement.classList.add('hidden');
-                    showSettingsButton.classList.remove('hidden');
-                }
-            }
+function saveNewRules() {
+    const rulesTextarea = document.getElementById('newRulesTextarea');
+    localStorage.setItem(CONFIG.STORAGE_KEYS.NEW_RULES, rulesTextarea.value);
+    CONFIG.NEW_RULES = rulesTextarea.value.split('\n').filter(rule => rule.trim() !== '');
+    alert('Rules saved successfully!');
+}
+
+// Modify the initializeApp function to include new event listeners
+function initializeApp() {
+    attachEventListeners();
+    loadSettings();
+    updateConversationUI();
+}
+
+function attachEventListeners() {
+    uiManager.addEventListenerToElement('saveSettings', 'click', saveSettings);
+    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL, 'click', handleConversationControl);
+    uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS, 'click', handleConversationStatus);
+    uiManager.addEventListenerToElement('showSettings', 'click', toggleSettings);
+        uiManager.addEventListenerToElement('viewNewRules', 'click', toggleRulesEditor);
+        uiManager.addEventListenerToElement('saveNewRules', 'click', saveNewRules);
+        uiManager.addEventListenerToElement('hideNewRules', 'click', toggleRulesEditor);
+    }
