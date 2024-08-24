@@ -1,7 +1,5 @@
 const fetch = require('node-fetch');
-const dotenv = require('dotenv');
-
-dotenv.config();
+require('dotenv').config();
 
 const instance = process.env.SN_INSTANCE;
 const username = process.env.SN_USERNAME;
@@ -22,6 +20,9 @@ async function callServiceNowAPI(endpoint, method, data = null) {
 
   try {
     const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     return await response.json();
   } catch (error) {
     console.error(`Error calling ServiceNow API: ${error}`);

@@ -1,14 +1,9 @@
 run = "npm start"
-language = "nodejs"
-entrypoint = "test-server.js"
+entrypoint = "index.js"
 
 [nix]
 channel = "stable-22_11"
 
 [deployment]
-run = ["npm", "start"]
+run = ["sh", "-c", "npm start"]
 deploymentTarget = "cloudrun"
-
-[[ports]]
-localPort = 3000
-externalPort = 80

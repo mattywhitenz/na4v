@@ -3,13 +3,6 @@ const fetch = require('node-fetch');
 const app = express();
 const port = process.env.PORT || 3000;
 
-console.log("Starting server...");
-
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} request to ${req.url}`);
-  next();
-});
-
 app.use(express.json());
 
 app.get('/', (req, res) => {

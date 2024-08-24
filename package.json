@@ -2,12 +2,13 @@
   "name": "now-assist",
   "version": "1.0.0",
   "description": "Now Assist - ServiceNow API Connection",
-  "main": "servicenow.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node servicenow.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "node-fetch": "^2.6.1",
-    "dotenv": "^10.0.0"
+    "express": "^4.17.1",
+    "cors": "^2.8.5",
+    "node-fetch": "^2.6.1"
   }
 }

@@ -1,40 +1,53 @@
 const express = require('express');
-const fetch = require('node-fetch');
-const dotenv = require('dotenv');
-const path = require('path');
 const cors = require('cors');
-const { createCase } = require('./servicenow');
-
-dotenv.config();
+const path = require('path');
+const fetch = require('node-fetch');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(express.json());
-app.use(cors());
-app.use(express.static('public'));
+console.log("Starting server...");
 
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} request to ${req.url}`);
+  next();
+});
+
+// Routes
 app.get('/', (req, res) => {
+  console.log("Serving index.html");
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/update-env', (req, res) => {
-  const { SN_INSTANCE, SN_USERNAME, SN_PASSWORD } = req.body;
-  process.env.SN_INSTANCE = SN_INSTANCE;
-  process.env.SN_USERNAME = SN_USERNAME;
-  process.env.SN_PASSWORD = SN_PASSWORD;
-  res.json({ message: 'Environment variables updated successfully' });
+app.get('/test', (req, res) => {
+  console.log("Test route accessed");
+  res.json({ message: 'Server is running' });
 });
 
-app.post('/create-case', async (req, res) => {
+app.post('/api/servicenow-proxy', async (req, res) => {
+  const { url, method, headers, body } = req.body;
   try {
-    const result = await createCase(req.body);
-    res.json(result);
+    console.log('Proxy request:', { url, method, headers });
+    const response = await fetch(url, { method, headers, body: JSON.stringify(body) });
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
+    console.error('Error in proxy route:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+// Start server
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running at http://0.0.0.0:${port}`);
+  console.log('Available routes:');
+  console.log('GET /');
+  console.log('GET /test');
+  console.log('POST /api/servicenow-proxy');
 });

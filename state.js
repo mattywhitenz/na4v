@@ -1,4 +1,4 @@
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable } from 'https://cdn.skypack.dev/mobx';
 
 class AppState {
   conversationState = 'idle';

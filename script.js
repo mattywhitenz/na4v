@@ -231,48 +231,37 @@ async function onAudioDataAvailable(audioBlob) {
       uiManager.updateTranscript('🟢', acknowledgement);
       await respondWithSpeech(acknowledgement);
     } else {
+      console.log("Transcribing audio...");
       const userInput = await apiInteractions.transcribeAudio(audioBlob, apiKey);
+      console.log("Transcribed userInput:", userInput);
       if (!userInput) throw new Error('Failed to transcribe audio');
       uiManager.updateTranscript('👤', userInput);
 
-      const assistantResponse = await apiInteractions.processWithGPT4(userInput, apiKey, uiManager.getConversationHistory(), appState.userName, localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME), localStorage.getItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME));
-      if (!assistantResponse) throw new Error('Failed to get assistant response');
+      console.log("Checking for 'open a case' in userInput");
+      if (userInput && typeof userInput === 'string' && userInput.toLowerCase().includes('open a case')) {
+        console.log("'Open a case' detected, handling case creation");
+        await handleCaseCreation(userInput, apiKey);
+      } else {
+        console.log("Processing with GPT-4");
+        const assistantResponse = await apiInteractions.processWithGPT4(userInput, apiKey, uiManager.getConversationHistory(), appState.userName, localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME), localStorage.getItem(CONFIG.STORAGE_KEYS.CUSTOMER_NAME));
+        console.log("Assistant response:", assistantResponse);
+        if (!assistantResponse) throw new Error('Failed to get assistant response');
 
-      if (assistantResponse.startsWith("CONVERSATION_END")) {
-        uiManager.updateTranscript('🟢', assistantResponse.substring("CONVERSATION_END".length).trim());
-        await respondWithSpeech(assistantResponse.substring("CONVERSATION_END".length).trim());
-        await resetConversation();
-        return;
+        if (assistantResponse.startsWith("CONVERSATION_END")) {
+          uiManager.updateTranscript('🟢', assistantResponse.substring("CONVERSATION_END".length).trim());
+          await respondWithSpeech(assistantResponse.substring("CONVERSATION_END".length).trim());
+          await resetConversation();
+          return;
+        }
+
+        uiManager.updateTranscript('🟢', assistantResponse);
+        await respondWithSpeech(assistantResponse);
       }
-
-      if (userInput.toLowerCase().includes('open a case') || assistantResponse.toLowerCase().includes('open a case')) {
-        const openCaseMessage = "OK - let me open a case for you now. I'll need a few moments to get that started.";
-        uiManager.updateTranscript('🟢', openCaseMessage);
-        await respondWithSpeech(openCaseMessage);
-
-        const fullTranscript = uiManager.getConversationHistory().map(item => `${item.role}: ${item.text}`).join('\n');
-        const shortDescription = await apiInteractions.generateShortDescription(fullTranscript, apiKey);
-        const caseSummary = await apiInteractions.generateChatSummary(fullTranscript, apiKey);
-
-        const [firstName, ...lastNameParts] = appState.userName.split(' ');
-        const lastName = lastNameParts.join(' ');
-
-        const userDetails = {
-          firstName: firstName,
-          lastName: lastName || 'Unknown',
-          shortDescription: shortDescription,
-          description: caseSummary
-        };
-
-        await createCase(userDetails);
-      }
-
-      uiManager.updateTranscript('🟢', assistantResponse);
-      await respondWithSpeech(assistantResponse);
     }
   } catch (error) {
     console.error('Detailed error in onAudioDataAvailable:', error);
-    uiManager.showErrorMessage('general', error.message);
+    console.error('Error stack:', error.stack);
+    uiManager.showErrorMessage('general', `${error.name}: ${error.message}`);
     await resetConversation();
   } finally {
     if (appState.conversationState === 'processing') {
@@ -282,34 +271,55 @@ async function onAudioDataAvailable(audioBlob) {
   }
 }
 
+async function handleCaseCreation(userInput, apiKey) {
+  console.log("Handling case creation...");
+  const openCaseMessage = "OK - let me open a case for you now. I'll need a few moments to get that started.";
+  uiManager.updateTranscript('🟢', openCaseMessage);
+  await respondWithSpeech(openCaseMessage);
+
+  try {
+    console.log("Generating case details...");
+    const fullTranscript = uiManager.getConversationHistory().map(item => `${item.role}: ${item.text}`).join('\n');
+    console.log("Full transcript:", fullTranscript);
+    
+    const shortDescription = await apiInteractions.generateShortDescription(fullTranscript, apiKey);
+    console.log("Generated short description:", shortDescription);
+    
+    const caseSummary = await apiInteractions.generateChatSummary(fullTranscript, apiKey);
+    console.log("Generated case summary:", caseSummary);
+
+    const [firstName, ...lastNameParts] = appState.userName.split(' ');
+    const lastName = lastNameParts.join(' ');
+
+    const userDetails = {
+      firstName: firstName,
+      lastName: lastName || 'Unknown',
+      shortDescription: shortDescription,
+      description: caseSummary
+    };
+    console.log("User details for case creation:", userDetails);
+
+    await createCase(userDetails);
+  } catch (error) {
+    console.error("Error in handleCaseCreation:", error);
+    throw error; // Re-throw the error to be caught in the calling function
+  }
+}
+
 async function createCase(userDetails) {
   try {
-    const instance = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
-    const username = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_USERNAME);
-    const password = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD);
+    console.log('Creating case with details:', userDetails);
 
-    const response = await fetch(`https://${instance}.replit.app/api/now/table/sn_hr_core_case`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa(`${username}:${password}`)}`
-      },
-      body: JSON.stringify(userDetails)
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to create case');
-    }
-
-    const result = await response.json();
+    const result = await apiInteractions.createCase(userDetails);
     console.log('Case created:', result);
 
-    const caseCreatedMessage = `I've created a case for you. Your case number is ${result.result.number}. Is there anything else I can help you with?`;
+    const caseCreatedMessage = `I've created a case for you. Your case number is ${result.hrCase.number}. Is there anything else I can help you with?`;
     uiManager.updateTranscript('🟢', caseCreatedMessage);
     await respondWithSpeech(caseCreatedMessage);
 
   } catch (error) {
-    console.error('Error creating case:', error);
+    console.error('Detailed error in createCase:', error);
+    console.error('Error stack:', error.stack);
     uiManager.showErrorMessage('caseCreationError', error.message);
     const errorMessage = "I'm sorry, there was an error creating your case. Please try again later or contact support.";
     uiManager.updateTranscript('🟢', errorMessage);

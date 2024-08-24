@@ -9,23 +9,35 @@ async function callServiceNowAPI(endpoint, method, data = null) {
     throw new Error('ServiceNow credentials are missing. Please check your settings.');
   }
 
-  const url = `https://${instance}.replit.app/api/now/table/${endpoint}`;
+  const servicenowUrl = `https://${instance}.service-now.com/api/now/table/${endpoint}`;
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Basic ${btoa(`${username}:${password}`)}`
   };
 
-  const options = {
-    method: method,
-    headers: headers,
-    body: data ? JSON.stringify(data) : null
-  };
+  // Use the full URL of your Replit project for the proxy
+  const proxyUrl = `${window.location.origin}/api/servicenow-proxy`;
 
   try {
-    const response = await fetch(url, options);
+    console.log('Calling ServiceNow API via proxy:', { endpoint, method, data });
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: servicenowUrl,
+        method: method,
+        headers: headers,
+        body: data
+      })
+    });
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
+
     return await response.json();
   } catch (error) {
     console.error(`Error calling ServiceNow API: ${error}`);
@@ -35,52 +47,67 @@ async function callServiceNowAPI(endpoint, method, data = null) {
 
 export async function createCase(userDetails = {}) {
   try {
-    // Generate a random email if not provided
-    const email = userDetails.email || `user${Math.floor(Math.random() * 10000)}@example.com`;
+    console.log("Starting case creation process in apiInteractions...");
 
-    // Create user
+    // 1. Create user
     console.log("Creating user...");
-    const user = await callServiceNowAPI('sys_user', 'POST', {
-      first_name: userDetails.firstName || "Test",
-      last_name: userDetails.lastName || "User",
-      email: email
-    });
-    console.log("User created:", user.result.sys_id);
+    const createUserPayload = {
+      first_name: userDetails.firstName,
+      last_name: userDetails.lastName,
+      email: userDetails.email || `user${Math.floor(Math.random() * 10000)}@example.com`
+    };
+    console.log("User payload:", createUserPayload);
+    const userResponse = await callServiceNowAPI('sys_user', 'POST', createUserPayload);
+    console.log("User creation response:", userResponse);
+    const userId = userResponse.result.sys_id;
+    console.log("User created:", userId);
 
-    // Create interaction
+    // 2. Create interaction
     console.log("Creating interaction...");
-    const interaction = await callServiceNowAPI('interaction', 'POST', {
-      opened_for: user.result.sys_id,
+    const createInteractionPayload = {
+      opened_for: userId,
       short_description: userDetails.shortDescription || "Voice-triggered interaction"
-    });
-    console.log("Interaction created:", interaction.result.sys_id);
+    };
+    console.log("Interaction payload:", createInteractionPayload);
+    const interactionResponse = await callServiceNowAPI('interaction', 'POST', createInteractionPayload);
+    console.log("Interaction creation response:", interactionResponse);
+    const interactionId = interactionResponse.result.sys_id;
+    console.log("Interaction created:", interactionId);
 
-    // Create HR case
+    // 3. Create HR case
     console.log("Creating HR case...");
-    const hrCase = await callServiceNowAPI('sn_hr_core_case', 'POST', {
-      opened_for: user.result.sys_id,
+    const createHRCasePayload = {
+      opened_for: userId,
       short_description: userDetails.shortDescription || "Voice-triggered HR case",
       description: userDetails.description || "This is an HR case created via voice automation"
-    });
-    console.log("HR case created:", hrCase.result.sys_id);
+    };
+    console.log("HR Case payload:", createHRCasePayload);
+    const hrCaseResponse = await callServiceNowAPI('sn_hr_core_case', 'POST', createHRCasePayload);
+    console.log("HR Case creation response:", hrCaseResponse);
+    const hrCaseId = hrCaseResponse.result.sys_id;
+    console.log("HR case created:", hrCaseId);
 
-    // Create related interaction record
+    // 4. Create related interaction record
     console.log("Creating related interaction record...");
-    const relatedRecord = await callServiceNowAPI('interaction_related_record', 'POST', {
-      interaction: interaction.result.sys_id,
-      document_id: hrCase.result.sys_id,
+    const createRelatedInteractionPayload = {
+      interaction: interactionId,
+      document_id: hrCaseId,
       document_table: 'sn_hr_core_case'
-    });
-    console.log("Related interaction record created:", relatedRecord.result.sys_id);
+    };
+    console.log("Related Interaction payload:", createRelatedInteractionPayload);
+    const relatedRecordResponse = await callServiceNowAPI('interaction_related_record', 'POST', createRelatedInteractionPayload);
+    console.log("Related Interaction creation response:", relatedRecordResponse);
+    console.log("Related interaction record created:", relatedRecordResponse.result.sys_id);
 
     return {
-      user: user.result,
-      interaction: interaction.result,
-      hrCase: hrCase.result,
-      relatedRecord: relatedRecord.result
+      user: userResponse.result,
+      interaction: interactionResponse.result,
+      hrCase: hrCaseResponse.result,
+      relatedRecord: relatedRecordResponse.result
     };
   } catch (error) {
     console.error("Error in case creation process:", error);
+    console.error("Error stack:", error.stack);
     throw error;
   }
 }
