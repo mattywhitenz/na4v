@@ -53,6 +53,7 @@ export function stopRecording() {
     mediaRecorder = null;
     recordingStream = null;
     isRecording = false;
+    audioChunks = [];
 }
 
 export function isCurrentlyRecording() {
@@ -116,4 +117,10 @@ export async function handleNameRecording(audioBlob, apiKey) {
 async function extractFirstName(fullName, apiKey) {
     // Implementation for extracting first name (you may need to adjust this based on your needs)
     return fullName.split(' ')[0];
+}
+
+export function cleanupAudioResources() {
+  stopRecording();
+  stopAudioPlayback();
+  clearAudioCache();
 }
