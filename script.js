@@ -356,7 +356,7 @@ function initializeApp() {
 
 function attachEventListeners() {
   uiManager.addEventListenerToElement('saveSettings', 'click', saveSettings);
-  uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_CONTROL, 'click', handleConversationControl);
+  document.getElementById('conversationControl').addEventListener('click', handleConversationControl);
   uiManager.addEventListenerToElement(CONFIG.UI_ELEMENTS.CONVERSATION_STATUS, 'click', handleConversationStatus);
   uiManager.addEventListenerToElement('showSettings', 'click', toggleSettings);
   uiManager.addEventListenerToElement('viewNewRules', 'click', toggleRulesEditor);
