@@ -107,7 +107,6 @@ export async function createCase(userDetails = {}) {
     };
   } catch (error) {
     console.error("Error in case creation process:", error);
-    console.error("Error stack:", error.stack);
     throw error;
   }
 }

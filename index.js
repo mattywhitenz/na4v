@@ -8,6 +8,16 @@ const port = process.env.PORT || 3000;
 
 console.log("Starting server...");
 
+const Database = require("@replit/database");
+const db = new Database();
+
+app.get('/db-test', async (req, res) => {
+  console.log("DB test route accessed");
+  await db.set("key", "value");
+  const value = await db.get("key");
+  res.json({ message: 'DB Test', value: value });
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -21,8 +31,8 @@ app.use((req, res, next) => {
 
 // Routes
 app.get('/', (req, res) => {
-  console.log("Serving index.html");
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  console.log("Root route accessed");
+  res.send('Hello from Now Assist!');
 });
 
 app.get('/test', (req, res) => {

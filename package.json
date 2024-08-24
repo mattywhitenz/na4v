@@ -4,11 +4,16 @@
   "description": "Now Assist - ServiceNow API Connection",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
-    "express": "^4.17.1",
+    "@replit/database": "^3.0.1",
     "cors": "^2.8.5",
-    "node-fetch": "^2.6.1"
+    "express": "^4.19.2",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
   }
 }
