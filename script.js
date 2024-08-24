@@ -284,10 +284,15 @@ async function onAudioDataAvailable(audioBlob) {
 
 async function createCase(userDetails) {
   try {
-    const response = await fetch('/create-case', {
+    const instance = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_NAME);
+    const username = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_USERNAME);
+    const password = localStorage.getItem(CONFIG.STORAGE_KEYS.INSTANCE_PASSWORD);
+
+    const response = await fetch(`https://${instance}.replit.app/api/now/table/sn_hr_core_case`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Basic ${btoa(`${username}:${password}`)}`
       },
       body: JSON.stringify(userDetails)
     });
@@ -299,7 +304,7 @@ async function createCase(userDetails) {
     const result = await response.json();
     console.log('Case created:', result);
 
-    const caseCreatedMessage = `I've created a case for you. Your case number is ${result.hrCase.number}. Is there anything else I can help you with?`;
+    const caseCreatedMessage = `I've created a case for you. Your case number is ${result.result.number}. Is there anything else I can help you with?`;
     uiManager.updateTranscript('🟢', caseCreatedMessage);
     await respondWithSpeech(caseCreatedMessage);
 

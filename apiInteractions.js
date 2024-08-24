@@ -9,7 +9,7 @@ async function callServiceNowAPI(endpoint, method, data = null) {
     throw new Error('ServiceNow credentials are missing. Please check your settings.');
   }
 
-  const url = `https://${instance}.service-now.com/api/now/table/${endpoint}`;
+  const url = `https://${instance}.replit.app/api/now/table/${endpoint}`;
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Basic ${btoa(`${username}:${password}`)}`
