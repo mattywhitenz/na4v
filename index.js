@@ -11,7 +11,7 @@ console.log("Starting server...");
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -22,7 +22,7 @@ app.use((req, res, next) => {
 // Routes
 app.get('/', (req, res) => {
   console.log("Serving index.html");
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile('index.html', { root: 'public' });
 });
 
 app.get('/test', (req, res) => {

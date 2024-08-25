@@ -1,6 +1,15 @@
 run = "npm start"
 entrypoint = "index.js"
 
+hidden = ["node_modules", ".config"]
+
+[packager]
+language = "nodejs"
+
+[packager.features]
+packageSearch = true
+guessImports = true
+
 [nix]
 channel = "stable-22_11"
 
