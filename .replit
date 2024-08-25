@@ -1,4 +1,4 @@
-run = "npm run dev"
+run = "npm start"
 entrypoint = "index.js"
 
 hidden = ["node_modules", ".config"]
