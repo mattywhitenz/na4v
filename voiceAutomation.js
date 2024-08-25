@@ -1,20 +1,25 @@
-const { createCase } = require('./servicenow');
+import { createCase } from './apiInteractions.js';
+import { getConversationHistory } from './uiManager.js';
+import { generateRandomEmail, generateShortDescription, generateChatSummary } from './apiInteractions.js';
 
-// This function would be called when voice input is processed
-async function handleVoiceInput(voiceInput) {
-  // Check if the voice input is asking to open a case
-  if (voiceInput.toLowerCase().includes('open a case')) {
+export async function handleVoiceInput(text, apiKey) {
+  if (text.toLowerCase().includes('open a case')) {
     try {
       console.log("Voice command detected: Opening a case");
 
-      // Here you would typically extract more details from the voice input
-      // For this example, we're using placeholder data
+      const conversationHistory = getConversationHistory();
+      const transcript = conversationHistory.map(item => `${item.role}: ${item.text}`).join('\n');
+
+      const email = await generateRandomEmail(apiKey);
+      const shortDescription = await generateShortDescription(transcript, apiKey);
+      const description = await generateChatSummary(transcript, apiKey);
+
       const userDetails = {
         firstName: "Voice",
         lastName: "User",
-        email: `voice_user_${Date.now()}@example.com`,
-        shortDescription: "Case opened via voice command",
-        description: "This case was automatically opened in response to a voice command."
+        email: email,
+        shortDescription: shortDescription,
+        description: description
       };
 
       const result = await createCase(userDetails);
@@ -22,7 +27,6 @@ async function handleVoiceInput(voiceInput) {
       console.log("Case created successfully");
       console.log("HR Case Number:", result.hrCase.number);
 
-      // Here you would typically send this information back to the voice interface
       return `Case opened successfully. Your case number is ${result.hrCase.number}.`;
     } catch (error) {
       console.error("Error creating case:", error);
@@ -32,12 +36,3 @@ async function handleVoiceInput(voiceInput) {
     return "I'm sorry, I didn't understand. If you'd like to open a case, please say 'open a case'.";
   }
 }
-
-// Example usage (you would replace this with your actual voice input mechanism)
-async function simulateVoiceCommand(command) {
-  const response = await handleVoiceInput(command);
-  console.log("Assistant response:", response);
-}
-
-// Simulate a voice command
-simulateVoiceCommand("open a case for me please");
